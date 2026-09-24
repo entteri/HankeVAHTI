@@ -27,6 +27,8 @@ Tuonnin jälkeen pääsivun **Kaikki hankkeet** avaa selattavan ja haettavan lis
 
 Haeavustuksia-hankkeen **Lisätiedot**-ikkunassa lähdelinkki avaa kyseisen haun osoitteessa `https://www.haeavustuksia.fi/fi/haku/{asianumero}`.
 
+**Asetukset**-sivulla voi tyhjentää kaikki haetut hankkeet ja aloittaa tuonnin alusta. Painike avaa vahvistusikkunan. Tyhjennys poistaa myös hankkeiden arviot ja osallistumistiedot pysyvästi, mutta säilyttää tallennetut hakuehdot.
+
 REST-rajapinnassa hankkeet löytyvät reiteistä `GET /api/funding-calls`, `GET /api/funding-calls/{id}` ja päätös tallennetaan reitillä `PATCH /api/funding-calls/{id}/status` käyttäen esimerkiksi JSON-runkoa `{"status":"PARTICIPATE"}` tai `{"status":"REJECTED"}`.
 
 ## Testit
@@ -39,4 +41,4 @@ Testit käyttävät erillistä väliaikaista SQLite-tietokantaa eivätkä tarvit
 
 ## Nykyinen rajaus
 
-Asetukset-painike on vielä paikkamerkki. Toteutuskunnan rajaus, soveltuvuuspisteytys, yleisten hakuprofiilien hallinta ja osallistumisen vaiheiden muokkaus tulevat myöhemmin.
+Toteutuskunnan rajaus, soveltuvuuspisteytys, yleisten hakuprofiilien hallinta ja osallistumisen vaiheiden muokkaus tulevat myöhemmin.

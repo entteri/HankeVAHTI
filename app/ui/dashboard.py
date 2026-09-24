@@ -65,5 +65,5 @@ def dashboard() -> None:
             ui.button("Kaikki hankkeet", on_click=lambda: ui.navigate.to("/hankkeet"))
             ui.button("Arvioi hankkeita", on_click=lambda: ui.navigate.to("/arvioi"))
             ui.button("Hakuehdot", on_click=lambda: ui.navigate.to("/hakuehdot"))
-            ui.button("Asetukset", on_click=lambda: ui.notify("Asetukset lisätään seuraavassa vaiheessa"))
+            ui.button("Asetukset", on_click=lambda: ui.navigate.to("/asetukset"))
         dashboard_stats()
