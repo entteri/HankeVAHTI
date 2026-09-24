@@ -1,0 +1,1 @@
+"""Tietokantakyselyt lisätään myöhemmässä vaiheessa."""

@@ -1,0 +1,1 @@
+"""Tietokantayhteys ja ORM-perusta."""
