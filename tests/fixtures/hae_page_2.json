@@ -1,0 +1,15 @@
+{
+  "totalCount": 2,
+  "pageCount": 2,
+  "hakuilmoitukset": [
+    {
+      "hakuasianAsianumero": "va-bf-2026-12",
+      "nimi": {"fi": "Veturiyrityksien kumppanuusrahoitushaku", "sv": null, "en": null},
+      "kuvaus": {"fi": "Business Finland tarjoaa kumppanuusrahoitusta.", "sv": null, "en": null},
+      "hakuAlkaaDateTimeUtc": "2026-03-31T21:01:00Z",
+      "hakuPaattyyDateTimeUtc": "2030-12-31T21:59:00Z",
+      "hakuTyyppi": "Maaraaikainen",
+      "julkaisuTyyppi": "Hakuilmoitus"
+    }
+  ]
+}

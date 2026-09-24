@@ -1,0 +1,15 @@
+{
+  "totalCount": 2,
+  "pageCount": 2,
+  "hakuilmoitukset": [
+    {
+      "hakuasianAsianumero": "va-lou-2026-5",
+      "nimi": {"fi": "Yksityisteiden valtionavustukset", "sv": "Statsbidrag för enskilda vägar", "en": null},
+      "kuvaus": {"fi": "Tiekunta voi hakea avustusta yksityistien parantamiseen.", "sv": null, "en": null},
+      "hakuAlkaaDateTimeUtc": "2025-12-31T22:00:00Z",
+      "hakuPaattyyDateTimeUtc": "2036-12-31T21:59:00Z",
+      "hakuTyyppi": "Jatkuva",
+      "julkaisuTyyppi": "Hakuilmoitus"
+    }
+  ]
+}

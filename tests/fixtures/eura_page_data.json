@@ -1,0 +1,33 @@
+{
+  "preRenderData": {
+    "hankehaku": [
+      {
+        "id": "d62b6d71-91c0-40e3-83b3-c5db0d51f134",
+        "tila": "haettavissa",
+        "hakuaika": {"alku": "2026-06-01", "loppu": "2026-09-30"},
+        "otsikko": "Työelämän kehittäminen",
+        "rahasto": "ESR+",
+        "viranomainen": "6413",
+        "alue": "VALTAKUNNALLINEN",
+        "hakutunnus": "PSUEVK-105",
+        "maakunnat": []
+      },
+      {
+        "id": "eakr-1",
+        "tila": "haettavissa",
+        "hakuaika": {"alku": "2026-05-01", "loppu": "2026-10-31"},
+        "otsikko": "EAKR-hanke",
+        "rahasto": "EAKR",
+        "hakutunnus": "EAKR-1"
+      },
+      {
+        "id": "closed-1",
+        "tila": "paattynyt",
+        "hakuaika": {"alku": "2025-01-01", "loppu": "2025-03-31"},
+        "otsikko": "Päättynyt ESR+-hanke",
+        "rahasto": "ESR+",
+        "hakutunnus": "ESR-OLD"
+      }
+    ]
+  }
+}
