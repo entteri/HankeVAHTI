@@ -42,10 +42,7 @@ def _view(call: FundingCall) -> FundingCallView:
         description=call.description,
         fund=call.fund,
         category=call.category,
-        source_url=(
-            f"https://eura2021.fi/hakuilmoitukset/hakuilmoitus/{call.source_id}/"
-            if call.source == "EURA" else call.source_url
-        ),
+        source_url=_source_url(call),
         application_start_date=call.application_start_date,
         application_end_date=call.application_end_date,
         status=evaluation.status if evaluation else EvaluationStatus.NEW,
@@ -55,6 +52,18 @@ def _view(call: FundingCall) -> FundingCallView:
         responsible_person=participation.responsible_person if participation else None,
         next_action=participation.next_action if participation else None,
     )
+
+
+def _source_url(call: FundingCall) -> str | None:
+    if call.source == "EURA":
+        from app.importers.eura import eura_detail_url
+
+        return eura_detail_url(call.source_id)
+    if call.source == "HAEAVUSTUKSIA":
+        from app.importers.haeavustuksia import hae_detail_url
+
+        return hae_detail_url(call.source_id)
+    return call.source_url
 
 
 def _filters(status: EvaluationStatus | None, search: str) -> list:

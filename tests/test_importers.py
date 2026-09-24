@@ -8,7 +8,7 @@ import pytest
 from sqlalchemy import func, select
 
 from app.importers.eura import EURA_URL, eura_detail_url, import_eura, parse_eura_options, parse_eura_page
-from app.importers.haeavustuksia import API_URL, import_haeavustuksia
+from app.importers.haeavustuksia import API_URL, hae_detail_url, import_haeavustuksia
 from app.models import EvaluationStatus, FundingCall, Participation, ParticipationStage
 from app.services.imports import run_imports
 from app.services.eura_criteria import EuraCriteria, save_eura_criteria
@@ -133,10 +133,15 @@ def test_hae_import_reads_all_pages_and_converts_local_dates(db_session):
 
     first = db_session.scalar(select(FundingCall).where(FundingCall.source_id == "va-lou-2026-5"))
     assert first.call_identifier == "va-lou-2026-5"
+    assert first.source_url == "https://www.haeavustuksia.fi/fi/haku/va-lou-2026-5"
     assert first.application_start_date == date(2026, 1, 1)
     assert first.application_end_date == date(2036, 12, 31)
     assert first.raw_data == pages[1]["hakuilmoitukset"][0]
     assert first.evaluation.status is EvaluationStatus.NEW
+
+
+def test_hae_detail_url_escapes_path_segments():
+    assert hae_detail_url("va/example") == "https://www.haeavustuksia.fi/fi/haku/va%2Fexample"
 
 
 def test_hae_updates_source_data_without_overwriting_evaluation(db_session):

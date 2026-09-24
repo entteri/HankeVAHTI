@@ -1,6 +1,7 @@
 """Haeavustuksia.fi:n sivutetun hankelistan tuonti."""
 
 from datetime import date, datetime
+from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -9,7 +10,12 @@ from sqlalchemy.orm import Session
 from app.importers.common import FundingCallData, ImportResult, upsert_calls
 
 API_URL = "https://www.haeavustuksia.fi/api/haku/list-items"
+HAE_BASE_URL = "https://www.haeavustuksia.fi/fi/haku/"
 HELSINKI = ZoneInfo("Europe/Helsinki")
+
+
+def hae_detail_url(source_id: str) -> str:
+    return HAE_BASE_URL + quote(source_id, safe="")
 
 
 def _localized_text(value: dict | str | None) -> str | None:
@@ -43,7 +49,7 @@ def _parse_item(item: dict) -> FundingCallData:
         call_identifier=str(identifier),
         title=title,
         description=_localized_text(item.get("kuvaus")),
-        source_url=API_URL,
+        source_url=hae_detail_url(str(identifier)),
         application_start_date=_local_date(item.get("hakuAlkaaDateTimeUtc")),
         application_end_date=_local_date(item.get("hakuPaattyyDateTimeUtc")),
         raw_data=item,

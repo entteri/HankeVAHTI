@@ -43,6 +43,20 @@ def test_existing_eura_call_gets_direct_detail_link(db_session):
     )
 
 
+def test_existing_hae_call_gets_direct_detail_link(db_session):
+    call = FundingCall(
+        source="HAEAVUSTUKSIA",
+        source_id="va-lou-2026-5",
+        call_identifier="va-lou-2026-5",
+        title="Yksityisteiden valtionavustukset",
+        source_url="https://www.haeavustuksia.fi/api/haku/list-items",
+    )
+    db_session.add(call)
+    db_session.commit()
+    view = get_funding_call(db_session, call.id)
+    assert view.source_url == "https://www.haeavustuksia.fi/fi/haku/va-lou-2026-5"
+
+
 def test_search_criteria_page_shows_eura_options(db_session, monkeypatch):
     data = json.loads((Path(__file__).parent / "fixtures" / "eura_page_data.json").read_text(encoding="utf-8"))
     payload = quote(json.dumps(data, ensure_ascii=False))

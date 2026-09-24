@@ -45,7 +45,10 @@ def _details_dialog(call: FundingCallView):
         ui.separator()
         ui.label(call.description or "Kuvausta ei ole saatavilla.").classes("whitespace-pre-wrap")
         if call.source_url:
-            label = "Avaa hakuilmoitus EURA:ssa" if call.source == "EURA" else "Avaa lähde"
+            label = {
+                "EURA": "Avaa hakuilmoitus EURA:ssa",
+                "HAEAVUSTUKSIA": "Avaa haku Haeavustuksia.fi:ssä",
+            }.get(call.source, "Avaa lähde")
             ui.link(label, call.source_url, new_tab=True)
         ui.button("Sulje", on_click=dialog.close)
     return dialog
