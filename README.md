@@ -21,6 +21,10 @@ Tietokanta sijaitsee oletuksena tiedostossa `data/hankevahti.db`. Sovellus ei lu
 
 Pääsivun **Hae uudet hankkeet** -painike tai `POST /api/imports/run` hakee molemmat lähteet. Tuonti käsittelee Haeavustuksia-palvelun kaikki sivut, tuo EURAsta vain haettavissa olevat ESR+-haut ja päivittää muuttuneet lähdetiedot. Uudelle haulle luodaan `NEW`-arvio; aiempaa arviota tai osallistumistietoja ei muuteta. Molemmat lähteet tallennetaan yhdessä transaktiossa, joten virhe ei jätä osittaista tuontia.
 
+Tuonnin jälkeen pääsivun **Kaikki hankkeet** avaa selattavan ja haettavan listan. **Arvioi hankkeita** näyttää `NEW`-tilaiset haut. Hankkeen **Lisätiedot** avaa kuvauksen ja hakuajan, ja **Osallistu** tai **Hylkää** tallentaa päätöksen. Osallistuttavat ja hylätyt hankkeet löytyvät omista näkymistään. Osallistumispäätökselle luodaan myös osallistumisrivi, joka näkyy **Käynnissä olevat** -näkymässä. Jos tuonti ei löydä uusia hankkeita, käyttöliittymä kertoo sen ja näyttää erikseen päivitettyjen määrän.
+
+REST-rajapinnassa hankkeet löytyvät reiteistä `GET /api/funding-calls`, `GET /api/funding-calls/{id}` ja päätös tallennetaan reitillä `PATCH /api/funding-calls/{id}/status` käyttäen esimerkiksi JSON-runkoa `{"status":"PARTICIPATE"}` tai `{"status":"REJECTED"}`.
+
 ## Testit
 
 ```powershell
@@ -31,4 +35,4 @@ Testit käyttävät erillistä väliaikaista SQLite-tietokantaa eivätkä tarvit
 
 ## Nykyinen rajaus
 
-Pääsivun mittarikortit sekä Hakuehdot- ja Asetukset-painikkeet ovat paikkamerkkejä. Soveltuvuuspisteytys, hakuprofiilien hallinta ja varsinainen hanke-API eivät vielä kuulu tähän vaiheeseen.
+Hakuehdot- ja Asetukset-painikkeet ovat vielä paikkamerkkejä. Soveltuvuuspisteytys, hakuprofiilien hallinta ja osallistumisen vaiheiden muokkaus tulevat myöhemmin.

@@ -8,7 +8,10 @@ import app.models  # noqa: F401 - rekisteröi mallit
 
 @pytest.fixture
 def db_session(tmp_path):
-    engine = create_engine(f"sqlite:///{(tmp_path / 'test.db').as_posix()}")
+    engine = create_engine(
+        f"sqlite:///{(tmp_path / 'test.db').as_posix()}",
+        connect_args={"check_same_thread": False},
+    )
 
     @event.listens_for(engine, "connect")
     def enable_foreign_keys(connection, record):
