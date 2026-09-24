@@ -1,5 +1,23 @@
 {
   "preRenderData": {
+    "koodisto": {
+      "rahasto": {
+        "ESR+": {"koodi": "ESR+", "fi": "Euroopan sosiaalirahasto plus (ESR+)"},
+        "EAKR": {"koodi": "EAKR", "fi": "Euroopan aluekehitysrahasto (EAKR)"}
+      },
+      "alue": {
+        "VALTAKUNNALLINEN": {"koodi": "VALTAKUNNALLINEN", "fi": "Valtakunnallinen"},
+        "ETELA_SUOMI": {"koodi": "ETELA_SUOMI", "fi": "Etelä-Suomi"}
+      },
+      "viranomainen": {
+        "6413": {"koodi": "6413", "fi": "Pohjois-Suomen elinvoimakeskus"},
+        "2601": {"koodi": "2601", "fi": "Uudenmaan liitto"}
+      },
+      "maakunta": {
+        "01": {"koodi": "01", "fi": "Uusimaa"},
+        "02": {"koodi": "02", "fi": "Varsinais-Suomi"}
+      }
+    },
     "hankehaku": [
       {
         "id": "d62b6d71-91c0-40e3-83b3-c5db0d51f134",

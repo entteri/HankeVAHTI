@@ -42,7 +42,10 @@ def _view(call: FundingCall) -> FundingCallView:
         description=call.description,
         fund=call.fund,
         category=call.category,
-        source_url=call.source_url,
+        source_url=(
+            f"https://eura2021.fi/hakuilmoitukset/hakuilmoitus/{call.source_id}/"
+            if call.source == "EURA" else call.source_url
+        ),
         application_start_date=call.application_start_date,
         application_end_date=call.application_end_date,
         status=evaluation.status if evaluation else EvaluationStatus.NEW,

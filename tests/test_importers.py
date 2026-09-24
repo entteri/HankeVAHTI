@@ -7,10 +7,11 @@ import httpx
 import pytest
 from sqlalchemy import func, select
 
-from app.importers.eura import EURA_URL, import_eura, parse_eura_page
+from app.importers.eura import EURA_URL, eura_detail_url, import_eura, parse_eura_options, parse_eura_page
 from app.importers.haeavustuksia import API_URL, import_haeavustuksia
 from app.models import EvaluationStatus, FundingCall, Participation, ParticipationStage
 from app.services.imports import run_imports
+from app.services.eura_criteria import EuraCriteria, save_eura_criteria
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -47,7 +48,53 @@ def test_eura_parses_only_open_esr_calls():
     assert calls[0].source_id == "d62b6d71-91c0-40e3-83b3-c5db0d51f134"
     assert calls[0].call_identifier == "PSUEVK-105"
     assert calls[0].application_end_date == date(2026, 9, 30)
+    assert calls[0].source_url == eura_detail_url(calls[0].source_id)
     assert calls[0].raw_data == data["preRenderData"]["hankehaku"][0]
+
+
+def test_eura_criteria_use_site_codes_and_filter_open_calls(db_session):
+    data = _fixture("eura_page_data.json")
+    html = _eura_html(data)
+    options = parse_eura_options(html)
+    assert options["fund"]["ESR+"] == "Euroopan sosiaalirahasto plus (ESR+)"
+    assert options["regions"]["01"] == "Uusimaa"
+
+    first = data["preRenderData"]["hankehaku"][0]
+    first["hakutunnus"] = "PSUEVK-112"
+    first["alue"] = "ETELA_SUOMI"
+    first["viranomainen"] = "2601"
+    first["maakunnat"] = ["01"]
+    criteria = EuraCriteria(
+        fund="ESR+",
+        area="ETELA_SUOMI",
+        authority="2601",
+        regions=["01"],
+        call_identifier="psuevk-112",
+    )
+    save_eura_criteria(db_session, criteria)
+    with _client(eura_data=data) as client:
+        assert import_eura(db_session, client).created == 1
+    assert parse_eura_page(_eura_html(data), EuraCriteria(regions=["02"])) == []
+    assert parse_eura_page(_eura_html(data), EuraCriteria(call_identifier="MISSING")) == []
+
+
+def test_eura_fund_can_be_changed_to_other_site_option(db_session):
+    data = _fixture("eura_page_data.json")
+    save_eura_criteria(db_session, EuraCriteria(fund="EAKR"))
+    with _client(eura_data=data) as client:
+        assert import_eura(db_session, client).created == 1
+    call = db_session.scalar(select(FundingCall))
+    assert call.source_id == "eakr-1"
+    assert call.fund == "EAKR"
+
+
+def test_combined_import_uses_saved_eura_criteria(db_session):
+    save_eura_criteria(db_session, EuraCriteria(fund="EAKR"))
+    pages = {1: _fixture("hae_page_1.json"), 2: _fixture("hae_page_2.json")}
+    with _client(eura_data=_fixture("eura_page_data.json"), hae_pages=pages) as client:
+        result = run_imports(db_session, client)
+    assert result["eura"]["created"] == 1
+    assert db_session.scalar(select(FundingCall).where(FundingCall.source == "EURA")).source_id == "eakr-1"
 
 
 def test_eura_missing_embedded_data_fails():

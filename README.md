@@ -23,6 +23,8 @@ Pääsivun **Hae uudet hankkeet** -painike tai `POST /api/imports/run` hakee mol
 
 Tuonnin jälkeen pääsivun **Kaikki hankkeet** avaa selattavan ja haettavan listan. **Arvioi hankkeita** näyttää `NEW`-tilaiset haut. Hankkeen **Lisätiedot** avaa kuvauksen ja hakuajan, ja **Osallistu** tai **Hylkää** tallentaa päätöksen. Osallistuttavat ja hylätyt hankkeet löytyvät omista näkymistään. Osallistumispäätökselle luodaan myös osallistumisrivi, joka näkyy **Käynnissä olevat** -näkymässä. Jos tuonti ei löydä uusia hankkeita, käyttöliittymä kertoo sen ja näyttää erikseen päivitettyjen määrän.
 
+**Hakuehdot**-sivulla voi tallentaa EURA-hakuilmoituksille rahaston, haun kohdealueen, viranomaisen, maakunnat ja hakutunnuksen. Valintojen nimet ja koodit haetaan EURA:n koodistosta sivun avaamisen yhteydessä. Oletuksena tuodaan vain avoimet ESR+-haut. Tallennetut ehdot vaikuttavat seuraaviin EURA-tuonteihin; jo tallennettuja hankkeita tai niiden arvioita ei poisteta. EURA-hankkeen **Lisätiedot**-ikkunassa oleva linkki avaa yksittäisen hakuilmoituksen UUID-tunnisteella.
+
 REST-rajapinnassa hankkeet löytyvät reiteistä `GET /api/funding-calls`, `GET /api/funding-calls/{id}` ja päätös tallennetaan reitillä `PATCH /api/funding-calls/{id}/status` käyttäen esimerkiksi JSON-runkoa `{"status":"PARTICIPATE"}` tai `{"status":"REJECTED"}`.
 
 ## Testit
@@ -35,4 +37,4 @@ Testit käyttävät erillistä väliaikaista SQLite-tietokantaa eivätkä tarvit
 
 ## Nykyinen rajaus
 
-Hakuehdot- ja Asetukset-painikkeet ovat vielä paikkamerkkejä. Soveltuvuuspisteytys, hakuprofiilien hallinta ja osallistumisen vaiheiden muokkaus tulevat myöhemmin.
+Asetukset-painike on vielä paikkamerkki. Toteutuskunnan rajaus, soveltuvuuspisteytys, yleisten hakuprofiilien hallinta ja osallistumisen vaiheiden muokkaus tulevat myöhemmin.
