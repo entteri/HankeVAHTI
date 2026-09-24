@@ -97,6 +97,17 @@ def test_combined_import_uses_saved_eura_criteria(db_session):
     assert db_session.scalar(select(FundingCall).where(FundingCall.source == "EURA")).source_id == "eakr-1"
 
 
+def test_combined_import_applies_eura_filter_only_to_eura(db_session):
+    save_eura_criteria(db_session, EuraCriteria(call_identifier="EI-LOYDY"))
+    pages = {1: _fixture("hae_page_1.json"), 2: _fixture("hae_page_2.json")}
+    with _client(eura_data=_fixture("eura_page_data.json"), hae_pages=pages) as client:
+        result = run_imports(db_session, client)
+
+    assert result["eura"]["created"] == 0
+    assert result["haeavustuksia"]["created"] == 2
+    assert db_session.scalar(select(func.count()).select_from(FundingCall)) == 2
+
+
 def test_eura_missing_embedded_data_fails():
     with pytest.raises(ValueError, match="__PREACT_CLI_DATA__"):
         parse_eura_page("<html><body>Ei dataa</body></html>")

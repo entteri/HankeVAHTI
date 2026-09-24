@@ -70,3 +70,5 @@ def test_search_criteria_page_shows_eura_options(db_session, monkeypatch):
     assert response.status_code == 200
     for label in ("Rahasto", "Haun kohdealue", "Viranomainen", "Maakunnat", "Hakutunnus", "Tallenna hakuehdot"):
         assert label in response.text
+    assert "Voimassa olevat EURA-hakuehdot" in response.text
+    assert "Haeavustuksia-hakuja nämä ehdot eivät rajaa" in response.text

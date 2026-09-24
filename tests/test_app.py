@@ -60,3 +60,14 @@ def test_import_feedback_says_when_no_new_calls_were_found():
         "haeavustuksia": {"created": 0, "updated": 0, "unchanged": 10},
     }
     assert _import_feedback(result) == ("Uusia hankkeita ei löytynyt. Päivitettyjä: 1.", "info")
+
+
+def test_import_feedback_shows_source_counts():
+    result = {
+        "eura": {"created": 15, "updated": 0, "unchanged": 0},
+        "haeavustuksia": {"created": 267, "updated": 0, "unchanged": 0},
+    }
+    assert _import_feedback(result) == (
+        "Tuonti valmis: 282 uutta (EURA 15, Haeavustuksia 267), 0 päivitettyä.",
+        "positive",
+    )

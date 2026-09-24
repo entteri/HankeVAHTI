@@ -16,11 +16,17 @@ def _run_imports_from_ui() -> dict[str, dict[str, int]]:
 
 
 def _import_feedback(result: dict[str, dict[str, int]]) -> tuple[str, str]:
-    created = sum(source["created"] for source in result.values())
+    eura_created = result["eura"]["created"]
+    hae_created = result["haeavustuksia"]["created"]
+    created = eura_created + hae_created
     updated = sum(source["updated"] for source in result.values())
     if created == 0:
         return f"Uusia hankkeita ei löytynyt. Päivitettyjä: {updated}.", "info"
-    return f"Tuonti valmis: {created} uutta, {updated} päivitettyä.", "positive"
+    return (
+        f"Tuonti valmis: {created} uutta (EURA {eura_created}, "
+        f"Haeavustuksia {hae_created}), {updated} päivitettyä.",
+        "positive",
+    )
 
 
 async def _on_import_click() -> None:
@@ -66,4 +72,7 @@ def dashboard() -> None:
             ui.button("Arvioi hankkeita", on_click=lambda: ui.navigate.to("/arvioi"))
             ui.button("Hakuehdot", on_click=lambda: ui.navigate.to("/hakuehdot"))
             ui.button("Asetukset", on_click=lambda: ui.navigate.to("/asetukset"))
+        ui.label(
+            "Hakuehdot rajaavat vain EURA-hakuja. Haeavustuksia-palvelusta tuodaan kaikki avoimet haut."
+        ).classes("text-sm text-gray-600")
         dashboard_stats()
