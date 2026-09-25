@@ -249,3 +249,38 @@ def test_combined_import_saves_both_sources(db_session):
     assert result["eura"]["created"] == 1
     assert result["haeavustuksia"]["created"] == 2
     assert db_session.scalar(select(func.count()).select_from(FundingCall)) == 3
+
+
+def test_import_and_rescoring_preserve_decisions_and_saved_score_until_requested(db_session):
+    from app.services.relevance import score_funding_calls
+    from app.services.search_profiles import save_keyword_settings
+
+    data = _fixture("eura_page_data.json")
+    item = data["preRenderData"]["hankehaku"][0]
+    item["otsikko"] = "Koulutus"
+    pages = {1: _fixture("hae_page_1.json"), 2: _fixture("hae_page_2.json")}
+    save_keyword_settings(db_session, ["koulutus", "tekoäly"], [])
+    with _client(eura_data=data, hae_pages=pages) as client:
+        run_imports(db_session, client)
+    call = db_session.scalar(select(FundingCall).where(FundingCall.source == "EURA"))
+    assert call.evaluation.suitability_score is None
+    score_funding_calls(db_session, as_of=date(2026, 1, 1))
+    assert call.evaluation.suitability_score == 20
+    original_summary = call.evaluation.suitability_summary
+    call.evaluation.status = EvaluationStatus.PARTICIPATE
+    call.participation = Participation(stage=ParticipationStage.PLANNING, notes="Säilytä")
+    db_session.commit()
+
+    item["otsikko"] = "Koulutus ja tekoäly"
+    with _client(eura_data=data, hae_pages=pages) as client:
+        result = run_imports(db_session, client)
+        assert result["eura"]["updated"] == 1
+        assert run_imports(db_session, client)["eura"]["unchanged"] == 1
+    db_session.refresh(call)
+    assert call.evaluation.suitability_score == 20
+    assert call.evaluation.suitability_summary == original_summary
+    assert score_funding_calls(db_session, call_ids=[call.id], as_of=date(2026, 1, 1)) == 1
+    assert call.evaluation.suitability_score == 40
+    assert call.evaluation.status is EvaluationStatus.PARTICIPATE
+    assert call.participation.notes == "Säilytä"
+    assert db_session.scalar(select(func.count()).select_from(FundingCall)) == 3

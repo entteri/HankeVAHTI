@@ -1,6 +1,6 @@
 # HankeVAHTI
 
-Yhden käyttäjän paikallinen sovellus rahoitushankkeiden seurantaan. Sovellus sisältää tietokantamallit, migraation, FastAPI-rungon, NiceGUI-pääsivun sekä EURA- ja Haeavustuksia-importerit. Pisteytys ja hakuprofiilien toiminnot tulevat seuraavissa vaiheissa.
+Yhden käyttäjän paikallinen sovellus rahoitushankkeiden seurantaan. Sovellus sisältää tietokantamallit, migraatiot, FastAPI-rungon, NiceGUI-käyttöliittymän, EURA- ja Haeavustuksia-importerit sekä sääntöpohjaisen relevanssipisteytyksen käyttäjän omilla hakusanoilla.
 
 ## Käynnistys
 
@@ -31,14 +31,45 @@ Haeavustuksia-hankkeen **Lisätiedot**-ikkunassa lähdelinkki avaa kyseisen haun
 
 REST-rajapinnassa hankkeet löytyvät reiteistä `GET /api/funding-calls`, `GET /api/funding-calls/{id}` ja päätös tallennetaan reitillä `PATCH /api/funding-calls/{id}/status` käyttäen esimerkiksi JSON-runkoa `{"status":"PARTICIPATE"}` tai `{"status":"REJECTED"}`.
 
+## Relevanssin hakusanat ja pisteytys
+
+1. Avaa **Asetukset → Relevanssin hakusanat**.
+2. Kirjoita kiinnostavat hakusanat ja poissulkusanat omiin kenttiinsä, yksi sana tai ilmaus riville. Esimerkiksi `tekoäly`, `koulutus` ja `osaamisen kehittäminen`. Voit muokata sanoja tai poistaa ne tyhjentämällä rivin.
+3. Paina **Tallenna hakusanat**. Ylimääräiset välilyönnit, tyhjät rivit ja saman sanan toistot siivotaan. Hakusanat ovat yhteiset molemmille tietolähteille.
+4. Paina **Pisteytä päättymättömät haut**. Toiminto käsittelee kaikki tietokannassa olevat haut, joiden päättymispäivä on tänään tai myöhemmin, sekä haut ilman päättymispäivää. Myös tulevat haut ovat mukana. Päivämäärä määräytyy Helsingin aikavyöhykkeessä.
+5. Avaa **Näytä hankkeet → Lisätiedot**. Listassa näkyvät pisteet ja relevanssiluokka. Lisätiedoissa näkyvät tallennetun pisteytyksen hakusanaosumat, poissulkevat osumat ja laskentasääntö.
+
+Pisteytys lukee nimen, kuvauksen, rahaston ja kategorian. Kukin eri kiinnostava hakusana antaa **20 pistettä**, positiivinen summa rajataan **100 pisteeseen**, ja sen jälkeen kukin eri poissulkusana vähentää **20 pistettä**. Lopputulos on vähintään **0**. Esimerkiksi neljä hakusanaosumaa ja yksi poissulkeva osuma antaa 60 pistettä. Sama sana useasti tekstissä antaa pisteet vain kerran. Jos sana on molemmilla listoilla, se lasketaan molempiin. Ilman osumia tai tyhjillä listoilla tulos on 0; vielä pisteyttämätön haku näytetään erikseen.
+
+| Pisteet | Luokka |
+|---|---|
+| 80–100 | Hyvin relevantti |
+| 60–79 | Mahdollisesti relevantti |
+| 30–59 | Tarkistettava |
+| 0–29 | Todennäköisesti ei relevantti |
+
+Vertailu tunnistaa kokonaiset sanat ja ilmaukset kirjainkoosta riippumatta. Ääkköset ja ilmauksen sisäiset välilyönnit/rivinvaihdot huomioidaan. Esimerkiksi `AI` ei osu sanaan `taidot`. Suomen taivutusmuotoja tai synonyymejä ei tunnisteta: `koulutus` ei osu sanaan `koulutuksen`. Lisää tarvittavat muodot erillisille riveille. Tulos on yksinkertainen suositus, eikä se käytä kielimallia tai ulkoista analyysipalvelua.
+
+**Pisteytys ei poista hakuja eikä muuta Osallistu/Hylkää-päätöksiä tai osallistumistietoja.** Hakusanojen tallennus ja tuonti eivät automaattisesti pisteytä hakuja. Aja pisteytys uudelleen tuonnin tai hakusanojen muuttamisen jälkeen. Vanhat pisteet ja niiden perustelut säilyvät siihen asti; jo päättyneiden hakujen pisteitä ei päivitetä. Uudelleenanalyysi korvaa edellisen pistemäärän ja perustelun, erillistä analyysihistoriaa ei tallenneta.
+
+MVP käyttää yhtä `SearchProfile`-riviä nimeltä `HankeVAHTI: relevanssi`. Muut mahdolliset profiilit säilyvät ennallaan eikä niitä yhdistetä tähän pisteytykseen. Tulos tallennetaan olemassa oleviin `Evaluation.suitability_score`- ja `suitability_summary`-kenttiin, joten ominaisuus ei vaadi uutta migraatiota. Pelkkä sivun avaaminen ei luo profiilia tai pisteytä hakuja.
+
+Pisteytys on erillisessä `app/services/relevance.py`-palvelussa. `score_funding_calls(session)` käsittelee kaikki päättymättömät haut; valinnainen `call_ids` rajaa ajon esimerkiksi uusiin tai muuttuneisiin hakuihin. Importerien nykyistä toimintaa ei ole muutettu. Pistepainot ja luokkarajat ovat keskitetysti tiedostossa `app/evaluators/relevance.py`.
+
 ## Testit
 
 ```powershell
 python -m pytest
 ```
 
-Testit käyttävät erillistä väliaikaista SQLite-tietokantaa eivätkä tarvitse verkkopalveluja.
+Tietokantatestit käyttävät erillistä väliaikaista SQLite-tietokantaa eivätkä tarvitse verkkopalveluja. Nykyinen `test_app.py`-tiedoston etusivutesti lukee kuitenkin sovelluksen normaalia tietokantaa, joten käynnistysohjeen migraatiot tulee suorittaa ennen koko testisarjaa. Uudet relevanssi- ja käyttöliittymätestit käyttävät väliaikaista kantaa.
+
+Relevanssitestit voi ajaa erikseen:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_relevance.py tests/test_relevance_ui.py -q
+```
 
 ## Nykyinen rajaus
 
-Toteutuskunnan rajaus, soveltuvuuspisteytys, yleisten hakuprofiilien hallinta ja osallistumisen vaiheiden muokkaus tulevat myöhemmin.
+Toteutuskunnan rajaus, yleisten hakuprofiilien hallinta, automaattinen pisteytys tuonnin yhteydessä ja osallistumisen vaiheiden muokkaus tulevat myöhemmin. Relevanssin yksi yhteinen hakusanaprofiili ja käsin käynnistettävä sääntöpisteytys ovat käytettävissä. Geminiä tai muita kielimalleja ei käytetä.
