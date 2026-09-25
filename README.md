@@ -74,4 +74,4 @@ Relevanssitestit voi ajaa erikseen:
 
 ## Nykyinen rajaus
 
-Toteutuskunnan rajaus, yleisten hakuprofiilien hallinta, automaattinen pisteytys tuonnin yhteydessä ja osallistumisen vaiheiden muokkaus tulevat myöhemmin. Relevanssin yksi yhteinen hakusanaprofiili ja käsin käynnistettävä sääntöpisteytys ovat käytettävissä. Geminiä tai muita kielimalleja ei käytetä.
+Toteutuskunnan rajaus, soveltuvuuspisteytys, yleisten hakuprofiilien hallinta ja osallistumisen vaiheiden muokkaus tulevat myöhemmin.
