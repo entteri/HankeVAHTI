@@ -5,6 +5,7 @@ from math import ceil
 from nicegui import ui
 
 from app.db.session import SessionLocal
+from app.evaluators.relevance import relevance_label
 from app.models import EvaluationStatus, ParticipationStage
 from app.services.funding_calls import FundingCallView, list_funding_calls, set_funding_call_status
 
@@ -39,9 +40,14 @@ def _details_dialog(call: FundingCallView):
         ui.label(f"Lähde: {call.source}")
         ui.label(f"Hakuaika: {_date(call.application_start_date)} – {_date(call.application_end_date)}")
         ui.label(f"Tila: {STATUS_LABELS[call.status]}")
-        ui.label(f"Soveltuvuuspisteet: {call.suitability_score if call.suitability_score is not None else 'Ei vielä pisteytetty'}")
+        ui.separator()
+        ui.label("Relevanssianalyysi").classes("text-lg font-semibold")
+        ui.label(f"Relevanssi: {str(call.suitability_score) + ' / 100' if call.suitability_score is not None else 'Ei vielä pisteytetty'}")
+        ui.label(f"Luokitus: {relevance_label(call.suitability_score)}")
         if call.suitability_summary:
+            ui.label("Tallennetun pisteytyksen perustelu ja osumat").classes("font-medium")
             ui.label(call.suitability_summary).classes("whitespace-pre-wrap")
+        ui.label("Suositus ei muuta osallistumispäätöstä. Pisteytys päivitetään Asetukset-sivulla.").classes("text-sm text-gray-600")
         ui.separator()
         ui.label(call.description or "Kuvausta ei ole saatavilla.").classes("whitespace-pre-wrap")
         if call.source_url:
@@ -104,6 +110,10 @@ def _render_page(title: str, initial_status: EvaluationStatus | None = None, ong
                     f"{call.call_identifier or call.source_id} · {call.source} · "
                     f"Haku päättyy {_date(call.application_end_date)}"
                 ).classes("text-sm text-gray-600")
+                ui.label(
+                    f"Relevanssi: {call.suitability_score} / 100 · {relevance_label(call.suitability_score)}"
+                    if call.suitability_score is not None else "Relevanssi: Ei vielä pisteytetty"
+                ).classes("text-sm font-medium")
                 if call.participation_stage is not None and call.status is EvaluationStatus.PARTICIPATE:
                     ui.label(
                         f"Vaihe: {STAGE_LABELS[call.participation_stage]} · "
@@ -136,6 +146,8 @@ def _render_page(title: str, initial_status: EvaluationStatus | None = None, ong
             ui.button("Osallistuttavat", on_click=lambda: ui.navigate.to("/osallistuttavat")).props("flat")
             ui.button("Hylätyt", on_click=lambda: ui.navigate.to("/hylatyt")).props("flat")
             ui.button("Käynnissä olevat", on_click=lambda: ui.navigate.to("/kaynnissa")).props("flat")
+            ui.button("Relevanssin asetukset", on_click=lambda: ui.navigate.to("/asetukset")).props("flat")
+        ui.label("Pisteet ovat suosituksia. Päivitä pisteytys Asetukset-sivulla tuonnin tai hakusanojen muuttamisen jälkeen.").classes("text-sm text-gray-600")
         with ui.row().classes("w-full gap-3 items-center"):
             ui.input("Hae nimellä tai tunnuksella", on_change=on_search).classes("grow")
             if initial_status is None and not ongoing_only:
