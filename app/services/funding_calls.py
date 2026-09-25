@@ -2,11 +2,31 @@
 
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
+from enum import Enum
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import Evaluation, EvaluationStatus, FundingCall, Participation, ParticipationStage
+
+
+class FundingCallSort(str, Enum):
+    DEFAULT = "default"
+    RELEVANCE_DESC = "relevance_desc"
+    RELEVANCE_ASC = "relevance_asc"
+    DEADLINE_ASC = "deadline_asc"
+
+
+def _ordering(sort: FundingCallSort) -> list:
+    order = []
+    if sort in (FundingCallSort.RELEVANCE_DESC, FundingCallSort.RELEVANCE_ASC):
+        score = Evaluation.suitability_score
+        order = [score.is_(None), score.desc() if sort is FundingCallSort.RELEVANCE_DESC else score.asc()]
+    elif sort is FundingCallSort.DEADLINE_ASC:
+        deadline = FundingCall.application_end_date
+        order = [deadline.is_(None), deadline.asc()]
+    # Vakaa järjestys myös tasapisteille ja puuttuville arvoille sivutuksessa.
+    return [*order, FundingCall.created_at.desc(), FundingCall.id.desc()]
 
 
 @dataclass(frozen=True)
@@ -93,9 +113,11 @@ def list_funding_calls(
     page: int = 1,
     page_size: int = 20,
     ongoing_only: bool = False,
+    sort: FundingCallSort = FundingCallSort.DEFAULT,
 ) -> tuple[list[FundingCallView], int]:
     if page < 1 or not 1 <= page_size <= 100:
         raise ValueError("Virheellinen sivunumero tai sivukoko")
+    order = _ordering(FundingCallSort(sort))
     filters = _filters(status, search)
     if ongoing_only:
         filters.extend((
@@ -114,7 +136,7 @@ def list_funding_calls(
         .outerjoin(Participation)
         .where(*filters)
         .options(selectinload(FundingCall.evaluation), selectinload(FundingCall.participation))
-        .order_by(FundingCall.created_at.desc(), FundingCall.id.desc())
+        .order_by(*order)
         .offset((page - 1) * page_size)
         .limit(page_size)
     ).all()

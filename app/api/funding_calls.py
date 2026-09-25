@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models import EvaluationStatus
-from app.services.funding_calls import get_funding_call, list_funding_calls, set_funding_call_status
+from app.services.funding_calls import FundingCallSort, get_funding_call, list_funding_calls, set_funding_call_status
 
 router = APIRouter(prefix="/api/funding-calls", tags=["funding-calls"])
 
@@ -23,9 +23,10 @@ def funding_calls(
     search: str = "",
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    sort: FundingCallSort = FundingCallSort.DEFAULT,
     db: Session = Depends(get_db),
 ) -> dict:
-    calls, total = list_funding_calls(db, status=status, search=search, page=page, page_size=page_size)
+    calls, total = list_funding_calls(db, status=status, search=search, page=page, page_size=page_size, sort=sort)
     return {"items": [asdict(call) for call in calls], "total": total, "page": page, "page_size": page_size}
 
 

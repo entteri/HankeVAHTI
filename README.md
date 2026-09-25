@@ -31,6 +31,8 @@ Haeavustuksia-hankkeen **Lisätiedot**-ikkunassa lähdelinkki avaa kyseisen haun
 
 REST-rajapinnassa hankkeet löytyvät reiteistä `GET /api/funding-calls`, `GET /api/funding-calls/{id}` ja päätös tallennetaan reitillä `PATCH /api/funding-calls/{id}/status` käyttäen esimerkiksi JSON-runkoa `{"status":"PARTICIPATE"}` tai `{"status":"REJECTED"}`.
 
+Hankelistojen **Lajittelu**-valinnasta voi valita **Relevanssi: suurin ensin**, **Relevanssi: pienin ensin**, **Deadline: lähin ensin** tai **Oletusjärjestys**. Relevanssilajittelussa pisteyttämättömät haut tulevat loppuun molemmissa suunnissa. Deadline-lajittelussa päivämäärät järjestetään aikaisimmasta alkaen ja puuttuvat päivämäärät viimeiseksi. Oletusjärjestys säilyy entisenä: viimeksi tuodut ensin. Lajittelu koskee koko suodatettua tulosjoukkoa ennen sivutusta; valinnan vaihtaminen palauttaa ensimmäiselle sivulle. Se ei muuta tallennettuja tietoja. API:ssa vastaavat `sort`-arvot ovat `relevance_desc`, `relevance_asc`, `deadline_asc` ja `default`.
+
 ## Relevanssin hakusanat ja pisteytys
 
 1. Avaa **Asetukset → Relevanssin hakusanat**.

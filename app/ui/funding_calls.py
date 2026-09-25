@@ -7,7 +7,14 @@ from nicegui import ui
 from app.db.session import SessionLocal
 from app.evaluators.relevance import relevance_label
 from app.models import EvaluationStatus, ParticipationStage
-from app.services.funding_calls import FundingCallView, list_funding_calls, set_funding_call_status
+from app.services.funding_calls import FundingCallSort, FundingCallView, list_funding_calls, set_funding_call_status
+
+SORT_LABELS = {
+    FundingCallSort.DEFAULT.value: "Oletusjärjestys",
+    FundingCallSort.RELEVANCE_DESC.value: "Relevanssi: suurin ensin",
+    FundingCallSort.RELEVANCE_ASC.value: "Relevanssi: pienin ensin",
+    FundingCallSort.DEADLINE_ASC.value: "Deadline: lähin ensin",
+}
 
 STATUS_LABELS = {
     EvaluationStatus.NEW: "Arvioimatta",
@@ -61,7 +68,7 @@ def _details_dialog(call: FundingCallView):
 
 
 def _render_page(title: str, initial_status: EvaluationStatus | None = None, ongoing_only: bool = False) -> None:
-    state = {"search": "", "status": initial_status, "page": 1}
+    state = {"search": "", "status": initial_status, "page": 1, "sort": FundingCallSort.DEFAULT}
 
     def choose_status(call_id: int, status: EvaluationStatus) -> None:
         with SessionLocal() as session:
@@ -87,6 +94,11 @@ def _render_page(title: str, initial_status: EvaluationStatus | None = None, ong
         state["page"] = event.value
         render_rows.refresh()
 
+    def on_sort(event) -> None:
+        state["sort"] = FundingCallSort(event.value)
+        state["page"] = 1
+        render_rows.refresh()
+
     @ui.refreshable
     def render_rows() -> None:
         with SessionLocal() as session:
@@ -96,6 +108,7 @@ def _render_page(title: str, initial_status: EvaluationStatus | None = None, ong
                 search=state["search"],
                 page=state["page"],
                 ongoing_only=ongoing_only,
+                sort=state["sort"],
             )
         ui.label(f"Hankkeita: {total}").classes("text-sm text-gray-600")
         if not calls:
@@ -154,6 +167,9 @@ def _render_page(title: str, initial_status: EvaluationStatus | None = None, ong
                 options = {"ALL": "Kaikki tilat"}
                 options.update({status.value: label for status, label in STATUS_LABELS.items()})
                 ui.select(options, label="Tila", value="ALL", on_change=on_status).classes("w-48")
+            ui.select(
+                SORT_LABELS, label="Lajittelu", value=state["sort"].value, on_change=on_sort,
+            ).classes("w-64")
         render_rows()
 
 
