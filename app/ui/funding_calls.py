@@ -1,11 +1,13 @@
 """Hankkeiden selailu, lisätiedot ja osallistumispäätökset."""
 
+import asyncio
 from math import ceil
 
 from nicegui import ui
 
 from app.db.session import SessionLocal
 from app.models import EvaluationStatus, ParticipationStage
+from app.services.ai_summary import SummaryError, generate_ai_summary
 from app.services.funding_calls import FundingCallView, list_funding_calls, set_funding_call_status
 
 STATUS_LABELS = {
@@ -42,6 +44,9 @@ def _details_dialog(call: FundingCallView):
         ui.label(f"Soveltuvuuspisteet: {call.suitability_score if call.suitability_score is not None else 'Ei vielä pisteytetty'}")
         if call.suitability_summary:
             ui.label(call.suitability_summary).classes("whitespace-pre-wrap")
+        if call.ai_summary:
+            ui.label("Tekoälyn yhteenveto").classes("font-semibold")
+            ui.label(call.ai_summary).classes("whitespace-pre-wrap")
         ui.separator()
         ui.label(call.description or "Kuvausta ei ole saatavilla.").classes("whitespace-pre-wrap")
         if call.source_url:
@@ -65,6 +70,22 @@ def _render_page(title: str, initial_status: EvaluationStatus | None = None, ong
             return
         ui.notify("Päätös tallennettu.", type="positive")
         state["page"] = 1
+        render_rows.refresh()
+
+    async def create_summary(call_id: int) -> None:
+        def generate() -> None:
+            with SessionLocal() as session:
+                generate_ai_summary(session, call_id)
+
+        try:
+            await asyncio.to_thread(generate)
+        except SummaryError as exc:
+            ui.notify(str(exc), type="negative")
+            return
+        except Exception:
+            ui.notify("Yhteenvedon luonti epäonnistui. Yritä uudelleen.", type="negative")
+            return
+        ui.notify("Tekoälyn yhteenveto tallennettu.", type="positive")
         render_rows.refresh()
 
     def on_search(event) -> None:
@@ -110,6 +131,14 @@ def _render_page(title: str, initial_status: EvaluationStatus | None = None, ong
                         f"Vastuuhenkilö: {call.responsible_person or 'Ei määritetty'} · "
                         f"Seuraava tehtävä: {call.next_action or 'Ei määritetty'}"
                     ).classes("text-sm")
+                if initial_status is EvaluationStatus.PARTICIPATE:
+                    if call.ai_summary:
+                        ui.label("Tekoälyn yhteenveto").classes("font-semibold")
+                        ui.label(call.ai_summary).classes("whitespace-pre-wrap")
+                    ui.button(
+                        "Tekoälyn yhteenveto",
+                        on_click=lambda _, call_id=call.id: create_summary(call_id),
+                    ).props("outline")
                 with ui.row().classes("gap-2 flex-wrap"):
                     ui.button("Lisätiedot", on_click=dialog.open).props("outline")
                     if call.status is not EvaluationStatus.PARTICIPATE:

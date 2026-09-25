@@ -61,6 +61,7 @@ def test_participation_decision_moves_call_out_of_review_queue(db_session, monke
         participating = client.get("/api/funding-calls?status=PARTICIPATE")
         details = client.get(f"/api/funding-calls/{call_id}")
         ongoing_page = client.get("/kaynnissa")
+        selected_page = client.get("/osallistuttavat")
     assert decision.status_code == 200
     assert decision.json()["participation_stage"] == "NOT_STARTED"
     assert repeated.status_code == 200
@@ -68,6 +69,7 @@ def test_participation_decision_moves_call_out_of_review_queue(db_session, monke
     assert participating.json()["total"] == 1
     assert details.json()["title"] == "Testihanke 0"
     assert "Testihanke 0" in ongoing_page.text
+    assert "Tekoälyn yhteenveto" in selected_page.text
     assert db_session.scalar(select(func.count()).select_from(Participation)) == 1
     assert dashboard_counts(db_session)["ongoing"] == 1
 
