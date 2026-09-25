@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from urllib.parse import quote
 
+import httpx
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
@@ -64,11 +65,36 @@ def test_search_criteria_page_shows_eura_options(db_session, monkeypatch):
     from app.importers.eura import parse_eura_options
 
     monkeypatch.setattr("app.ui.search_criteria.fetch_eura_options", lambda client: parse_eura_options(html))
+    monkeypatch.setattr("app.ui.search_criteria.fetch_haeavustuksia_authorities", lambda client: {"OKM": "Opetus- ja kulttuuriministeriö"})
     monkeypatch.setattr("app.ui.search_criteria.SessionLocal", sessionmaker(bind=db_session.get_bind()))
     with TestClient(app) as client:
         response = client.get("/hakuehdot")
     assert response.status_code == 200
-    for label in ("Rahasto", "Haun kohdealue", "Viranomainen", "Maakunnat", "Hakutunnus", "Tallenna hakuehdot"):
+    for label in ("Rahasto", "Haun kohdealue", "Viranomainen", "Maakunnat", "Hakutunnus", "Tallenna EURA-hakuehdot"):
         assert label in response.text
     assert "Voimassa olevat EURA-hakuehdot" in response.text
-    assert "Haeavustuksia-hakuja nämä ehdot eivät rajaa" in response.text
+    for label in (
+        "Haeavustuksia.fi-hakuilmoitukset",
+        "Voimassa olevat Haeavustuksia-hakuehdot",
+        "Avustuslaji",
+        "Tulevat haut",
+        "Käynnissä olevat haut",
+        "Valtionapuviranomainen",
+        "Opetus- ja kulttuuriministeriö",
+        "Tallenna Haeavustuksia-hakuehdot",
+    ):
+        assert label in response.text
+
+
+def test_hae_criteria_remain_visible_when_eura_options_fail(db_session, monkeypatch):
+    def fail_eura(client):
+        raise httpx.ConnectError("offline")
+
+    monkeypatch.setattr("app.ui.search_criteria.fetch_eura_options", fail_eura)
+    monkeypatch.setattr("app.ui.search_criteria.fetch_haeavustuksia_authorities", lambda client: {"OKM": "Opetus- ja kulttuuriministeriö"})
+    monkeypatch.setattr("app.ui.search_criteria.SessionLocal", sessionmaker(bind=db_session.get_bind()))
+    with TestClient(app) as client:
+        response = client.get("/hakuehdot")
+    assert response.status_code == 200
+    assert "EURA-valintoja ei voitu hakea" in response.text
+    assert "Tallenna Haeavustuksia-hakuehdot" in response.text

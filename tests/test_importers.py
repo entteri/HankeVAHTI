@@ -12,6 +12,7 @@ from app.importers.haeavustuksia import API_URL, hae_detail_url, import_haeavust
 from app.models import EvaluationStatus, FundingCall, Participation, ParticipationStage
 from app.services.imports import run_imports
 from app.services.eura_criteria import EuraCriteria, save_eura_criteria
+from app.services.haeavustuksia_criteria import HaeavustuksiaCriteria, get_haeavustuksia_criteria, save_haeavustuksia_criteria
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -149,6 +150,32 @@ def test_hae_import_reads_all_pages_and_converts_local_dates(db_session):
     assert first.application_end_date == date(2036, 12, 31)
     assert first.raw_data == pages[1]["hakuilmoitukset"][0]
     assert first.evaluation.status is EvaluationStatus.NEW
+
+
+def test_hae_import_uses_saved_criteria(db_session):
+    selected = HaeavustuksiaCriteria(
+        grant_type="Hankeavustus",
+        show_future=False,
+        show_ongoing=True,
+        authority="OKM",
+    )
+    save_haeavustuksia_criteria(db_session, selected)
+    assert get_haeavustuksia_criteria(db_session) == selected
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json=_fixture("hae_page_1.json") | {"pageCount": 1})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        result = import_haeavustuksia(db_session, client)
+    assert result.created == 1
+    assert len(requests) == 1
+    params = requests[0].url.params
+    assert params["Avustuslaji"] == "Hankeavustus"
+    assert params["ShowFuture"] == "false"
+    assert params["ShowOngoing"] == "true"
+    assert params["VaOrgLyhenne"] == "OKM"
 
 
 def test_hae_detail_url_escapes_path_segments():
