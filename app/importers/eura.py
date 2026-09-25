@@ -1,6 +1,7 @@
 """EURA 2021 -hakuilmoitusten jäsennys ja tuonti."""
 
 import json
+from dataclasses import replace
 from datetime import date
 from html.parser import HTMLParser
 from urllib.parse import unquote
@@ -38,6 +39,32 @@ class _PreactDataParser(HTMLParser):
         if tag == "script" and self._inside_data:
             self.payload = "".join(self._parts)
             self._inside_data = False
+
+
+class _DescriptionParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag in {"br", "li", "p", "div", "h1", "h2", "h3", "h4", "h5", "h6"}:
+            self.parts.append("\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in {"li", "p", "div", "h1", "h2", "h3", "h4", "h5", "h6"}:
+            self.parts.append("\n")
+
+    def handle_data(self, data: str) -> None:
+        self.parts.append(data)
+
+
+def _description_text(value: str | None) -> str | None:
+    if not value:
+        return None
+    parser = _DescriptionParser()
+    parser.feed(value)
+    text = "\n".join(" ".join(line.split()) for line in "".join(parser.parts).splitlines() if line.strip())
+    return text or None
 
 
 def _page_data(html: str) -> dict:
@@ -112,7 +139,14 @@ def fetch_eura_options(client: httpx.Client) -> dict[str, dict[str, str]]:
 def fetch_eura_calls(client: httpx.Client, criteria: EuraCriteria | None = None) -> list[FundingCallData]:
     response = client.get(EURA_URL)
     response.raise_for_status()
-    return parse_eura_page(response.text, criteria)
+    calls = parse_eura_page(response.text, criteria)
+    detailed_calls = []
+    for call in calls:
+        detail_response = client.get(call.source_url)
+        detail_response.raise_for_status()
+        description = _description_text(_page_data(detail_response.text)["ilmoitus"].get("kuvaus"))
+        detailed_calls.append(replace(call, description=description))
+    return detailed_calls
 
 
 def import_eura(session: Session, client: httpx.Client | None = None) -> ImportResult:

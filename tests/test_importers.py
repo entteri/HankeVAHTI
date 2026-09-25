@@ -26,10 +26,18 @@ def _eura_html(data: dict) -> str:
     return f'<html><script type="__PREACT_CLI_DATA__">{payload}</script></html>'
 
 
-def _client(eura_data: dict | None = None, hae_pages: dict[int, dict] | None = None):
+def _client(
+    eura_data: dict | None = None,
+    hae_pages: dict[int, dict] | None = None,
+    eura_descriptions: dict[str, str] | None = None,
+):
     def handler(request: httpx.Request) -> httpx.Response:
         if str(request.url) == EURA_URL:
             return httpx.Response(200, text=_eura_html(eura_data))
+        if request.url.path.startswith("/hakuilmoitukset/hakuilmoitus/"):
+            source_id = request.url.path.rstrip("/").split("/")[-1]
+            description = (eura_descriptions or {}).get(source_id, "<p>Haun kuvaus.</p>")
+            return httpx.Response(200, text=_eura_html({"preRenderData": {"ilmoitus": {"kuvaus": description}}}))
         if request.url.path == "/api/haku/list-items":
             page = int(request.url.params["Pagination.Page"])
             assert request.url.params["Pagination.PageSize"] == "20"
@@ -121,6 +129,7 @@ def test_eura_import_is_idempotent_and_preserves_user_data(db_session):
         assert import_eura(db_session, client).unchanged == 1
 
     call = db_session.scalar(select(FundingCall).where(FundingCall.source == "EURA"))
+    assert call.description == "Haun kuvaus."
     call.evaluation.status = EvaluationStatus.INTERESTING
     call.participation = Participation(stage=ParticipationStage.PLANNING, notes="Oma muistiinpano")
     db_session.commit()
@@ -133,6 +142,22 @@ def test_eura_import_is_idempotent_and_preserves_user_data(db_session):
     assert call.evaluation.status is EvaluationStatus.INTERESTING
     assert call.participation.notes == "Oma muistiinpano"
     assert db_session.scalar(select(func.count()).select_from(FundingCall)) == 1
+
+
+def test_eura_import_reads_description_from_detail_and_updates_existing_call(db_session):
+    data = _fixture("eura_page_data.json")
+    source_id = data["preRenderData"]["hankehaku"][0]["id"]
+    with _client(eura_data=data, eura_descriptions={source_id: "<p>Ensimmäinen <strong>kappale</strong>.</p><p>Toinen&nbsp;kappale.</p>"}) as client:
+        assert import_eura(db_session, client).created == 1
+
+    call = db_session.scalar(select(FundingCall).where(FundingCall.source == "EURA"))
+    assert call.description == "Ensimmäinen kappale.\nToinen kappale."
+    assert call.raw_data == data["preRenderData"]["hankehaku"][0]
+
+    with _client(eura_data=data, eura_descriptions={source_id: "<p>Päivitetty kuvaus.</p>"}) as client:
+        assert import_eura(db_session, client).updated == 1
+    db_session.refresh(call)
+    assert call.description == "Päivitetty kuvaus."
 
 
 def test_hae_import_reads_all_pages_and_converts_local_dates(db_session):
@@ -205,6 +230,8 @@ def test_combined_import_rolls_back_if_second_source_fails(db_session):
     def handler(request: httpx.Request) -> httpx.Response:
         if str(request.url) == EURA_URL:
             return httpx.Response(200, text=_eura_html(data))
+        if request.url.path.startswith("/hakuilmoitukset/hakuilmoitus/"):
+            return httpx.Response(200, text=_eura_html({"preRenderData": {"ilmoitus": {"kuvaus": ""}}}))
         if str(request.url).startswith(API_URL):
             return httpx.Response(503)
         raise AssertionError(request.url)
