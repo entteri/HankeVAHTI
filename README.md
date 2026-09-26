@@ -60,7 +60,7 @@ Pisteytys on erillisessä `app/services/relevance.py`-palvelussa. `score_funding
 
 ## Gemini AI -sparraaja (prototyyppi)
 
-Yksittäisen haun **Lisätiedot → AI-sparraaja** avaa dialogin, jossa voit kirjoittaa oman kysymyksen tai käyttää toimintoja **Analysoi rahoitushaku**, **Ehdota hankeideaa**, **Mitä pitää tarkistaa?** ja **Arvioi soveltuvuutta**. Valmis toimintopainike lähettää kysymyksen suoraan; oma kysymys lähetetään **Lähetä**-painikkeella. Pelkkä dialogin avaaminen ei tee Gemini-kutsua.
+Yksittäisen haun **Lisätiedot → AI-sparraaja** avaa dialogin, jossa voit kirjoittaa oman kysymyksen tai käyttää toimintoja **Analysoi rahoitushaku**, **Ehdota hankeideaa**, **Mitä pitää tarkistaa?** ja **Arvioi soveltuvuutta**. Valmis toimintopainike lähettää kysymyksen suoraan; oma kysymys lähetetään **Lähetä**-painikkeella. Pelkkä dialogin avaaminen ei tee Gemini-kutsua
 
 Sparraaja käyttää [Googlen virallista google-genai SDK:ta](https://googleapis.github.io/python-genai/). Asenna riippuvuudet nykyiseen virtuaaliympäristöön:
 
@@ -69,7 +69,7 @@ Sparraaja käyttää [Googlen virallista google-genai SDK:ta](https://googleapis
 ```
 
 Lisää olemassa olevaan paikalliseen `.env`-tiedostoon nämä rivit ja täytä niiden arvot:
-ÄLÄ TALLENNA API:a MISSÄÄN NIMESSÄ TÄNNE GIT:tiin
+**ÄLÄ TALLENNA API-AVAINTA MISSÄÄN NIMESSÄ TÄNNE GIT:tiin**
 
 ```dotenv
 GEMINI_API_KEY=
@@ -90,7 +90,7 @@ Gemini saa vain käyttäjän kysymyksen sekä haun nimen, kuvauksen, lähteen, r
 
 Ohjeistus pyytää Geminiä toimimaan Suomen eOppimiskeskuksen hankesuunnittelun sparraajana, erottamaan annetut faktat omista ehdotuksista, tunnistamaan puuttuvat tiedot ja jättämään päätökset ihmiselle. Mallin vastaus ei silti ole varmennettu tieto. Vastaukset näytetään tavallisena tekstinä, eikä niiden sisältämiä komentoja tai HTML:ää suoriteta.
 
-Prototyyppi käsittelee jokaisen kysymyksen itsenäisesti: aiempia kysymyksiä ja vastauksia ei välitetä seuraavaan pyyntöön. Uusi lähetys korvaa dialogissa näkyvän vastauksen. HankeVAHTI ei tallenna keskustelua tietokantaan. Dialogin sulkeminen ei peru jo lähetettyä pyyntöä. Sparraaja käyttää listan avaamisen yhteydessä luettuja hakutietoja eikä nouda lähdesivuja tai muuta pisteitä, päätöksiä tai muita tietokantatietoja. ILMAISESSA EI HIRVEÄSTI VAIHTOEHTOJA
+Prototyyppi käsittelee jokaisen kysymyksen itsenäisesti: aiempia kysymyksiä ja vastauksia ei välitetä seuraavaan pyyntöön. Uusi lähetys korvaa dialogissa näkyvän vastauksen. HankeVAHTI ei tallenna keskustelua tietokantaan. Dialogin sulkeminen ei peru jo lähetettyä pyyntöä. Sparraaja käyttää listan avaamisen yhteydessä luettuja hakutietoja eikä nouda lähdesivuja tai muuta pisteitä, päätöksiä tai muita tietokantatietoja. **ILMAISESSA EI HIRVEÄSTI VAIHTOEHTOJA**
 
 ## Testit
 
@@ -114,4 +114,7 @@ Gemini-testit käyttävät mockattua SDK-clientiä ja väliaikaista tietokantaa.
 
 ## Nykyinen rajaus
 
-Toteutuskunnan rajaus, yleisten hakuprofiilien hallinta, automaattinen pisteytys tuonnin yhteydessä ja osallistumisen vaiheiden muokkaus ei kuulu tähän. Relevanssin yksi yhteinen hakusanaprofiili ja käsin käynnistettävä sääntöpisteytys ovat käytettävissä. Valinnainen Gemini-sparraaja on erillinen kokeilu: se ei osallistu relevanssipisteytykseen. Keskustelujen tallennusta, Google Docs -integraatiota, kumppanihakua, agenttiketjuja tai hakemusten automaattista lähettämistä ei ole toteutettu.
+- Toteutuskunnan rajaus, yleisten hakuprofiilien hallinta ja osallistumisen vaiheiden laajempi muokkaus ei mahdollista tässä
+- Nykyisessä MVP-versiossa ovat käytettävissä hakusanat ja poissulkusanat, sääntöpohjainen relevanssipisteytys, pisteisiin ja deadlineen perustuva lajittelu sekä Gemini AI -sparraajan prototyyppi
+- Relevanssipisteytys käynnistetään tällä hetkellä käsin eikä analyysihistoriaa tallenneta. Käytössä on yksi yhteinen hakusanaprofiili johon AI ei tee mitään
+- Gemini AI -sparraaja vaatii käyttäjän oman Gemini API -avaimen paikalliseen `.env`-tiedostoon. **API-AVAINTA EI TALLENNETA VERSIONHALLINTAAN**
