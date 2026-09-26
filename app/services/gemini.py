@@ -94,6 +94,13 @@ def ask_gemini(call: FundingCallView, question: str) -> str:
     except errors.APIError as exc:
         if exc.code == 429:
             message = "Geminin käyttöraja tai pyyntötiheys ylittyi. Odota hetki ja tarkista tarvittaessa API-kiintiösi."
+        elif exc.code == 403 and "your project has been denied access" in (exc.message or "").casefold():
+            message = (
+                "Google on estänyt tämän projektin Gemini API -käytön (403). "
+                "Tarkista API-avaimeen liittyvän projektin ilmoitukset Google Cloud Consolessa "
+                "sekä AI Studion Projects- ja Billing-sivuilla. "
+                "Jos syy ei selviä, ota yhteyttä Googlen tukeen."
+            )
         elif exc.code in (401, 403):
             message = "Gemini ei hyväksynyt käyttöoikeutta. Tarkista API-avain ja mallin käyttöoikeus."
         elif exc.code == 404:

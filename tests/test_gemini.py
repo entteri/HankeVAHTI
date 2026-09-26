@@ -101,6 +101,7 @@ def test_blank_question_is_not_sent(funding_call, sdk):
     (errors.ClientError(429, {"error": {"message": "sensitive details"}}), "käyttöraja"),
     (errors.ClientError(401, {"error": {"message": "sensitive details"}}), "käyttöoikeutta"),
     (errors.ClientError(403, {"error": {"message": "sensitive details"}}), "käyttöoikeutta"),
+    (errors.ClientError(403, {"error": {"message": "Your project has been denied access. Please contact support. sensitive details"}}), "Google on estänyt tämän projektin"),
     (errors.ClientError(404, {"error": {"message": "sensitive details"}}), "mallia ei löytynyt"),
     (errors.ClientError(400, {"error": {"message": "sensitive details"}}), "API-virhe"),
     (errors.ServerError(503, {"error": {"message": "sensitive details"}}), "API-virhe"),
