@@ -137,11 +137,16 @@ def _render_page(title: str, initial_status: EvaluationStatus | None = None, ong
                     ).classes("text-sm")
                 with ui.row().classes("gap-2 flex-wrap"):
                     ui.button("Lisätiedot", on_click=dialog.open).props("outline")
+                    if call.status is not EvaluationStatus.NEW:
+                        ui.button(
+                            "Arvioimatta",
+                            on_click=lambda _, call_id=call.id: choose_status(call_id, EvaluationStatus.NEW),
+                        )
                     if call.status is not EvaluationStatus.PARTICIPATE:
                         ui.button(
                             "Osallistu",
                             on_click=lambda _, call_id=call.id: choose_status(call_id, EvaluationStatus.PARTICIPATE),
-                        )
+                        ).props("color=positive")
                     if call.status is not EvaluationStatus.REJECTED:
                         ui.button(
                             "Hylkää",

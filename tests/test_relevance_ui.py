@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import sessionmaker
 
 from app.main import app
-from app.models import EvaluationStatus, FundingCall, SearchProfile
+from app.models import Evaluation, EvaluationStatus, FundingCall, Participation, SearchProfile
 from app.services.search_profiles import get_keyword_settings, save_keyword_settings
 from tests.test_funding_calls import _test_client
 
@@ -112,3 +112,38 @@ def test_unscored_call_shows_no_score_instead_of_zero(db_session, monkeypatch):
         response = client.get("/hankkeet")
     assert "Relevanssi: Ei vielä pisteytetty" in response.text
     assert "Relevanssi: 0 / 100" not in response.text
+
+
+@pytest.mark.parametrize("status,path", [
+    (EvaluationStatus.PARTICIPATE, "/osallistuttavat"),
+    (EvaluationStatus.PARTICIPATE, "/kaynnissa"),
+    (EvaluationStatus.REJECTED, "/hylatyt"),
+])
+def test_reset_decision_returns_call_to_review_and_preserves_details(db_session, monkeypatch, status, path):
+    call = FundingCall(
+        source="EURA", source_id="reset-1", title="Palautettava haku",
+        evaluation=Evaluation(status=status, suitability_score=80, suitability_summary="Osuvat hakusanat"),
+        participation=Participation(notes="Sovittu palaveri"),
+    )
+    db_session.add(call)
+    db_session.commit()
+    call_id = call.id
+    with _test_client(db_session, monkeypatch) as client:
+        assert client.get("/api/funding-calls?status=NEW").json()["total"] == 0
+        page = _page_client(client.get(path))
+        client.portal.call(_click, page, "Arvioimatta")
+        labels = [e.text for e in page.elements.values() if isinstance(e, ui.label)]
+        assert "Hankkeita: 0" in labels
+        assert call.title not in labels
+        review = _page_client(client.get("/arvioi"))
+        assert call.title in [e.text for e in review.elements.values() if isinstance(e, ui.label)]
+        buttons = [e.text for e in review.elements.values() if isinstance(e, ui.button)]
+        assert "Osallistu" in buttons
+        assert "Hylkää" in buttons
+        assert "Arvioimatta" not in buttons
+    db_session.expire_all()
+    saved = db_session.get(FundingCall, call_id)
+    assert saved.evaluation.status is EvaluationStatus.NEW
+    assert saved.evaluation.suitability_score == 80
+    assert saved.evaluation.suitability_summary == "Osuvat hakusanat"
+    assert saved.participation.notes == "Sovittu palaveri"
