@@ -1,1 +1,1 @@
-"""Pisteytyksen toteutus kuuluu seuraavaan vaiheeseen."""
+"""Rahoitushakujen relevanssin arviointi."""
