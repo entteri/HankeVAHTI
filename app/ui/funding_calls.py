@@ -8,6 +8,7 @@ from app.db.session import SessionLocal
 from app.evaluators.relevance import relevance_label
 from app.models import EvaluationStatus, ParticipationStage
 from app.services.funding_calls import FundingCallSort, FundingCallView, list_funding_calls, set_funding_call_status
+from app.ui.ai_assistant import ai_assistant_dialog
 
 SORT_LABELS = {
     FundingCallSort.DEFAULT.value: "Oletusjärjestys",
@@ -63,6 +64,7 @@ def _details_dialog(call: FundingCallView):
                 "HAEAVUSTUKSIA": "Avaa haku Haeavustuksia.fi:ssä",
             }.get(call.source, "Avaa lähde")
             ui.link(label, call.source_url, new_tab=True)
+        ui.button("AI-sparraaja", on_click=lambda: ai_assistant_dialog(call).open())
         ui.button("Sulje", on_click=dialog.close)
     return dialog
 

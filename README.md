@@ -58,6 +58,39 @@ MVP käyttää yhtä `SearchProfile`-riviä nimeltä `HankeVAHTI: relevanssi`. M
 
 Pisteytys on erillisessä `app/services/relevance.py`-palvelussa. `score_funding_calls(session)` käsittelee kaikki päättymättömät haut; valinnainen `call_ids` rajaa ajon esimerkiksi uusiin tai muuttuneisiin hakuihin. Importerien nykyistä toimintaa ei ole muutettu. Pistepainot ja luokkarajat ovat keskitetysti tiedostossa `app/evaluators/relevance.py`.
 
+## Gemini AI -sparraaja (prototyyppi)
+
+Yksittäisen haun **Lisätiedot → AI-sparraaja** avaa dialogin, jossa voit kirjoittaa oman kysymyksen tai käyttää toimintoja **Analysoi rahoitushaku**, **Ehdota hankeideaa**, **Mitä pitää tarkistaa?** ja **Arvioi soveltuvuutta**. Valmis toimintopainike lähettää kysymyksen suoraan; oma kysymys lähetetään **Lähetä**-painikkeella. Pelkkä dialogin avaaminen ei tee Gemini-kutsua.
+
+Sparraaja käyttää [Googlen virallista google-genai SDK:ta](https://googleapis.github.io/python-genai/). Asenna riippuvuudet nykyiseen virtuaaliympäristöön:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+Lisää olemassa olevaan paikalliseen `.env`-tiedostoon nämä rivit ja täytä niiden arvot:
+
+```dotenv
+GEMINI_API_KEY=
+GEMINI_MODEL=
+```
+
+API-avaimen voi luoda Google AI Studiossa [Googlen avainohjeen](https://ai.google.dev/gemini-api/docs/api-key) mukaan. Aseta `GEMINI_MODEL`-arvoksi tililläsi käytettävissä olevan tekstimallin tarkka tunniste [Googlen malliluettelosta](https://ai.google.dev/gemini-api/docs/models); mallin tulee tukea `generate_content`-kutsua. Sovelluksessa ei ole oletusmallia. Älä korvaa olemassa olevaa `.env`-tiedostoa mallipohjalla, jotta muut paikalliset asetukset säilyvät. `.env` on Gitin ohituslistalla, ja avain pysyy palvelinpuolella.
+
+Käynnistä sovellus asetusten muuttamisen jälkeen uudelleen:
+
+```powershell
+.\.venv\Scripts\python.exe main.py
+```
+
+Avaa `http://localhost:8080`, valitse haku ja avaa **Lisätiedot → AI-sparraaja**. Jos avain tai mallin nimi puuttuu, dialogi näyttää suomenkielisen ohjeen; muu HankeVAHTI toimii normaalisti. Verkkovirhe, aikakatkaisu, käyttöraja, API-virhe ja tyhjä vastaus käsitellään dialogissa. Lähetyspainikkeet ovat pois käytöstä pyynnön ajan. HTTP-pyynnön aikakatkaisuksi on asetettu 60 sekuntia, eikä kutsua toisteta automaattisesti.
+
+Gemini saa vain käyttäjän kysymyksen sekä haun nimen, kuvauksen, lähteen, rahaston, kategorian, hakuajan, relevanssipisteet ja pisteytyksen perustelun. `raw_data`, osallistumisen muistiinpanot, vastuuhenkilö ja seuraava tehtävä eivät kuulu kontekstiin. Nykyisessä mallissa ei ole erillistä rahoittajakenttää, joten lähdepalvelua ei esitetä varmistettuna rahoittajana. Kutsut voivat kuluttaa Google-projektisi kiintiötä ja olla maksullisia.
+
+Ohjeistus pyytää Geminiä toimimaan Suomen eOppimiskeskuksen hankesuunnittelun sparraajana, erottamaan annetut faktat omista ehdotuksista, tunnistamaan puuttuvat tiedot ja jättämään päätökset ihmiselle. Mallin vastaus ei silti ole varmennettu tieto. Vastaukset näytetään tavallisena tekstinä, eikä niiden sisältämiä komentoja tai HTML:ää suoriteta.
+
+Prototyyppi käsittelee jokaisen kysymyksen itsenäisesti: aiempia kysymyksiä ja vastauksia ei välitetä seuraavaan pyyntöön. Uusi lähetys korvaa dialogissa näkyvän vastauksen. HankeVAHTI ei tallenna keskustelua tietokantaan. Dialogin sulkeminen ei peru jo lähetettyä pyyntöä. Sparraaja käyttää listan avaamisen yhteydessä luettuja hakutietoja eikä nouda lähdesivuja tai muuta pisteitä, päätöksiä tai muita tietokantatietoja. Migraatioita ei tarvita.
+
 ## Testit
 
 ```powershell
@@ -72,6 +105,12 @@ Relevanssitestit voi ajaa erikseen:
 .\.venv\Scripts\python.exe -m pytest tests/test_relevance.py tests/test_relevance_ui.py -q
 ```
 
+Gemini-testit käyttävät mockattua SDK-clientiä ja väliaikaista tietokantaa. Ne eivät kutsu oikeaa Gemini API:a eivätkä tarvitse oikeaa avainta:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_gemini.py -q
+```
+
 ## Nykyinen rajaus
 
-Toteutuskunnan rajaus, yleisten hakuprofiilien hallinta, automaattinen pisteytys tuonnin yhteydessä ja osallistumisen vaiheiden muokkaus tulevat myöhemmin. Relevanssin yksi yhteinen hakusanaprofiili ja käsin käynnistettävä sääntöpisteytys ovat käytettävissä. Geminiä tai muita kielimalleja ei käytetä.
+Toteutuskunnan rajaus, yleisten hakuprofiilien hallinta, automaattinen pisteytys tuonnin yhteydessä ja osallistumisen vaiheiden muokkaus tulevat myöhemmin. Relevanssin yksi yhteinen hakusanaprofiili ja käsin käynnistettävä sääntöpisteytys ovat käytettävissä. Valinnainen Gemini-sparraaja on erillinen kokeilu: se ei osallistu relevanssipisteytykseen. Keskustelujen tallennusta, Google Docs -integraatiota, kumppanihakua, agenttiketjuja tai hakemusten automaattista lähettämistä ei ole toteutettu.
