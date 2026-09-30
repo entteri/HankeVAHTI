@@ -32,6 +32,7 @@ class Evaluation(Base):
     status: Mapped[EvaluationStatus] = mapped_column(Enum(EvaluationStatus, native_enum=False, create_constraint=True, name="evaluation_status"), nullable=False, default=EvaluationStatus.NEW)
     suitability_score: Mapped[int | None] = mapped_column(Integer)
     suitability_summary: Mapped[str | None] = mapped_column(Text)
+    ai_summary: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 

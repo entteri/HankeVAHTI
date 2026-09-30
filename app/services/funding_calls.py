@@ -45,6 +45,7 @@ class FundingCallView:
     status: EvaluationStatus
     suitability_score: int | None
     suitability_summary: str | None
+    ai_summary: str | None
     participation_stage: ParticipationStage | None
     responsible_person: str | None
     next_action: str | None
@@ -68,6 +69,7 @@ def _view(call: FundingCall) -> FundingCallView:
         status=evaluation.status if evaluation else EvaluationStatus.NEW,
         suitability_score=evaluation.suitability_score if evaluation else None,
         suitability_summary=evaluation.suitability_summary if evaluation else None,
+        ai_summary=evaluation.ai_summary if evaluation else None,
         participation_stage=participation.stage if participation else None,
         responsible_person=participation.responsible_person if participation else None,
         next_action=participation.next_action if participation else None,

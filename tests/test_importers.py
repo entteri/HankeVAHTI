@@ -268,6 +268,7 @@ def test_import_and_rescoring_preserve_decisions_and_saved_score_until_requested
     assert call.evaluation.suitability_score == 20
     original_summary = call.evaluation.suitability_summary
     call.evaluation.status = EvaluationStatus.PARTICIPATE
+    call.evaluation.ai_summary = "Tallennettu AI-yhteenveto"
     call.participation = Participation(stage=ParticipationStage.PLANNING, notes="Säilytä")
     db_session.commit()
 
@@ -279,8 +280,10 @@ def test_import_and_rescoring_preserve_decisions_and_saved_score_until_requested
     db_session.refresh(call)
     assert call.evaluation.suitability_score == 20
     assert call.evaluation.suitability_summary == original_summary
+    assert call.evaluation.ai_summary == "Tallennettu AI-yhteenveto"
     assert score_funding_calls(db_session, call_ids=[call.id], as_of=date(2026, 1, 1)) == 1
     assert call.evaluation.suitability_score == 40
+    assert call.evaluation.ai_summary == "Tallennettu AI-yhteenveto"
     assert call.evaluation.status is EvaluationStatus.PARTICIPATE
     assert call.participation.notes == "Säilytä"
     assert db_session.scalar(select(func.count()).select_from(FundingCall)) == 3
