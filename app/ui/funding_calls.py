@@ -9,6 +9,7 @@ from app.db.session import SessionLocal
 from app.evaluators.relevance import relevance_label
 from app.models import EvaluationStatus, ParticipationStage
 from app.services.ai_summary import SummaryError, generate_ai_summary
+from app.services.duplicates import DuplicateMatch, find_duplicate_matches
 from app.services.funding_calls import FundingCallSort, FundingCallView, list_funding_calls, set_funding_call_status
 from app.ui.ai_assistant import ai_assistant_dialog
 
@@ -43,13 +44,23 @@ def _date(value) -> str:
     return value.strftime("%d.%m.%Y") if value else "Ei tiedossa"
 
 
-def _details_dialog(call: FundingCallView):
+def _details_dialog(call: FundingCallView, duplicate_matches: list[DuplicateMatch]):
     with ui.dialog() as dialog, ui.card().classes("w-full max-w-2xl p-5"):
         ui.label(call.title).classes("text-xl font-bold")
         ui.label(f"Hakutunnus: {call.call_identifier or call.source_id}")
         ui.label(f"Lähde: {call.source}")
         ui.label(f"Hakuaika: {_date(call.application_start_date)} – {_date(call.application_end_date)}")
         ui.label(f"Tila: {STATUS_LABELS[call.status]}")
+        if duplicate_matches:
+            ui.separator()
+            ui.label("Mahdollinen duplikaatti").classes("text-lg font-semibold text-orange-800")
+            ui.label("Tarkista, ovatko ilmoitukset sama haku. Niitä ei yhdistetä automaattisesti.")
+            for match in duplicate_matches:
+                other = match.haeavustuksia if match.eura.id == call.id else match.eura
+                ui.label(f"{other.source}: {other.title} ({other.identifier})")
+                ui.label(match.reason).classes("text-sm text-gray-600")
+                if other.source_url:
+                    ui.link("Avaa mahdollinen vastinpari", other.source_url, new_tab=True)
         ui.separator()
         ui.label("Relevanssianalyysi").classes("text-lg font-semibold")
         ui.label(f"Relevanssi: {str(call.suitability_score) + ' / 100' if call.suitability_score is not None else 'Ei vielä pisteytetty'}")
@@ -132,6 +143,7 @@ def _render_page(title: str, initial_status: EvaluationStatus | None = None, ong
     @ui.refreshable
     def render_rows() -> None:
         with SessionLocal() as session:
+            duplicate_matches = find_duplicate_matches(session)
             calls, total = list_funding_calls(
                 session,
                 status=state["status"],
@@ -140,14 +152,21 @@ def _render_page(title: str, initial_status: EvaluationStatus | None = None, ong
                 ongoing_only=ongoing_only,
                 sort=state["sort"],
             )
+        matches_by_id: dict[int, list[DuplicateMatch]] = {}
+        for match in duplicate_matches:
+            matches_by_id.setdefault(match.eura.id, []).append(match)
+            matches_by_id.setdefault(match.haeavustuksia.id, []).append(match)
         ui.label(f"Hankkeita: {total}").classes("text-sm text-gray-600")
         if not calls:
             ui.label("Hankkeita ei löytynyt näillä ehdoilla.").classes("text-gray-600")
         for call in calls:
-            dialog = _details_dialog(call)
+            call_matches = matches_by_id.get(call.id, [])
+            dialog = _details_dialog(call, call_matches)
             with ui.card().classes("w-full p-4"):
                 with ui.row().classes("w-full items-start justify-between gap-4"):
                     ui.label(call.title).classes("text-lg font-semibold")
+                    if call_matches:
+                        ui.badge("Mahdollinen duplikaatti").props("color=orange")
                     ui.badge(STATUS_LABELS[call.status])
                 ui.label(
                     f"{call.call_identifier or call.source_id} · {call.source} · "
@@ -200,6 +219,7 @@ def _render_page(title: str, initial_status: EvaluationStatus | None = None, ong
             ui.button("Etusivulle", on_click=lambda: ui.navigate.to("/")).props("outline")
         with ui.row().classes("gap-2 flex-wrap"):
             ui.button("Kaikki hankkeet", on_click=lambda: ui.navigate.to("/hankkeet")).props("flat")
+            ui.button("Mahdolliset duplikaatit", on_click=lambda: ui.navigate.to("/duplikaatit")).props("flat")
             ui.button("Arvioi hankkeita", on_click=lambda: ui.navigate.to("/arvioi")).props("flat")
             ui.button("Osallistuttavat", on_click=lambda: ui.navigate.to("/osallistuttavat")).props("flat")
             ui.button("Hylätyt", on_click=lambda: ui.navigate.to("/hylatyt")).props("flat")
@@ -246,3 +266,32 @@ def rejected_funding_calls() -> None:
 @ui.page("/kaynnissa")
 def ongoing_funding_calls() -> None:
     _render_page("Käynnissä olevat hankkeet", ongoing_only=True)
+
+
+@ui.page("/duplikaatit")
+def possible_duplicates() -> None:
+    with SessionLocal() as session:
+        matches = find_duplicate_matches(session)
+    with ui.column().classes("w-full max-w-5xl mx-auto p-6 gap-5"):
+        ui.label("Mahdolliset duplikaatit").classes("text-3xl font-bold")
+        ui.label(
+            "EURA:n ja Haeavustuksia.fi:n haut voivat tarkoittaa samaa hakua. "
+            "Vertaa alkuperäisiä ilmoituksia ennen päätöstä; tietoja ei yhdistetä tai poisteta."
+        ).classes("text-sm text-gray-600")
+        ui.label(f"Mahdollisia pareja: {len(matches)}").classes("font-medium")
+        ui.button("Etusivulle", on_click=lambda: ui.navigate.to("/")).props("outline")
+        if not matches:
+            ui.label("Mahdollisia duplikaatteja ei löytynyt.")
+        for match in matches:
+            with ui.card().classes("w-full p-4"):
+                ui.badge("Mahdollinen duplikaatti").props("color=orange")
+                ui.label(match.reason).classes("text-sm text-gray-600")
+                for call in (match.eura, match.haeavustuksia):
+                    with ui.column().classes("gap-1"):
+                        ui.label(f"{call.source}: {call.title}").classes("font-semibold")
+                        ui.label(
+                            f"Hakutunnus: {call.identifier} · Hakuaika: "
+                            f"{_date(call.start_date)} – {_date(call.end_date)}"
+                        ).classes("text-sm")
+                        if call.source_url:
+                            ui.link("Avaa alkuperäinen ilmoitus", call.source_url, new_tab=True)

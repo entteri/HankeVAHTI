@@ -4,6 +4,7 @@ import logging
 from nicegui import ui
 
 from app.db.session import SessionLocal
+from app.services.duplicates import find_duplicate_matches
 from app.services.funding_calls import dashboard_counts
 from app.services.imports import run_imports
 
@@ -45,8 +46,10 @@ async def _on_import_click() -> None:
 def dashboard_stats() -> None:
     with SessionLocal() as session:
         counts = dashboard_counts(session)
+        duplicate_count = len(find_duplicate_matches(session))
     cards = (
         ("Uusia hankkeita", counts["recent"], "/hankkeet"),
+        ("Mahdollisia duplikaattipareja", duplicate_count, "/duplikaatit"),
         ("Arvioimattomia hankkeita", counts["new"], "/arvioi"),
         ("Osallistuttavia hankkeita", counts["participating"], "/osallistuttavat"),
         ("Hylättyjä hankkeita", counts["rejected"], "/hylatyt"),
@@ -69,6 +72,7 @@ def dashboard() -> None:
         with ui.row().classes("gap-3 flex-wrap"):
             ui.button("Hae uudet hankkeet", on_click=_on_import_click)
             ui.button("Kaikki hankkeet", on_click=lambda: ui.navigate.to("/hankkeet"))
+            ui.button("Mahdolliset duplikaatit", on_click=lambda: ui.navigate.to("/duplikaatit"))
             ui.button("Arvioi hankkeita", on_click=lambda: ui.navigate.to("/arvioi"))
             ui.button("Hakuehdot", on_click=lambda: ui.navigate.to("/hakuehdot"))
             ui.button("Asetukset", on_click=lambda: ui.navigate.to("/asetukset"))
