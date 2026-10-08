@@ -15,6 +15,9 @@ class FundingCallSort(str, Enum):
     RELEVANCE_DESC = "relevance_desc"
     RELEVANCE_ASC = "relevance_asc"
     DEADLINE_ASC = "deadline_asc"
+    DEADLINE_DESC = "deadline_desc"
+    REJECTED_AT_DESC = "rejected_at_desc"
+    REJECTED_AT_ASC = "rejected_at_asc"
 
 
 def _ordering(sort: FundingCallSort) -> list:
@@ -22,9 +25,12 @@ def _ordering(sort: FundingCallSort) -> list:
     if sort in (FundingCallSort.RELEVANCE_DESC, FundingCallSort.RELEVANCE_ASC):
         score = Evaluation.suitability_score
         order = [score.is_(None), score.desc() if sort is FundingCallSort.RELEVANCE_DESC else score.asc()]
-    elif sort is FundingCallSort.DEADLINE_ASC:
+    elif sort in (FundingCallSort.DEADLINE_ASC, FundingCallSort.DEADLINE_DESC):
         deadline = FundingCall.application_end_date
-        order = [deadline.is_(None), deadline.asc()]
+        order = [deadline.is_(None), deadline.desc() if sort is FundingCallSort.DEADLINE_DESC else deadline.asc()]
+    elif sort in (FundingCallSort.REJECTED_AT_DESC, FundingCallSort.REJECTED_AT_ASC):
+        rejected = Evaluation.rejected_at
+        order = [rejected.is_(None), rejected.desc() if sort is FundingCallSort.REJECTED_AT_DESC else rejected.asc()]
     # Vakaa järjestys myös tasapisteille ja puuttuville arvoille sivutuksessa.
     return [*order, FundingCall.created_at.desc(), FundingCall.id.desc()]
 
@@ -49,6 +55,9 @@ class FundingCallView:
     participation_stage: ParticipationStage | None
     responsible_person: str | None
     next_action: str | None
+    rejected_at: datetime | None = None
+    matched_keywords: list[str] | None = None
+    matched_excluded_keywords: list[str] | None = None
 
 
 def _view(call: FundingCall) -> FundingCallView:
@@ -73,6 +82,9 @@ def _view(call: FundingCall) -> FundingCallView:
         participation_stage=participation.stage if participation else None,
         responsible_person=participation.responsible_person if participation else None,
         next_action=participation.next_action if participation else None,
+        rejected_at=evaluation.rejected_at if evaluation else None,
+        matched_keywords=evaluation.matched_keywords if evaluation else None,
+        matched_excluded_keywords=evaluation.matched_excluded_keywords if evaluation else None,
     )
 
 
@@ -160,7 +172,11 @@ def set_funding_call_status(session: Session, call_id: int, status: EvaluationSt
         return None
     if call.evaluation is None:
         call.evaluation = Evaluation(status=status)
+        if status is EvaluationStatus.REJECTED:
+            call.evaluation.rejected_at = datetime.now(timezone.utc)
     else:
+        if call.evaluation.status is not status:
+            call.evaluation.rejected_at = datetime.now(timezone.utc) if status is EvaluationStatus.REJECTED else None
         call.evaluation.status = status
     if status is EvaluationStatus.PARTICIPATE and call.participation is None:
         call.participation = Participation(stage=ParticipationStage.NOT_STARTED)

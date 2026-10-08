@@ -39,7 +39,9 @@ Haeavustuksia-hankkeen **Lisätiedot**-ikkunassa lähdelinkki avaa kyseisen haun
 
 REST-rajapinnassa hankkeet löytyvät reiteistä `GET /api/funding-calls`, `GET /api/funding-calls/{id}` ja päätös tallennetaan reitillä `PATCH /api/funding-calls/{id}/status` käyttäen esimerkiksi JSON-runkoa `{"status":"PARTICIPATE"}` tai `{"status":"REJECTED"}`.
 
-Hankelistojen **Lajittelu**-valinnasta voi valita **Relevanssi: suurin ensin**, **Relevanssi: pienin ensin**, **Deadline: lähin ensin** tai **Oletusjärjestys**. Relevanssilajittelussa pisteyttämättömät haut tulevat loppuun molemmissa suunnissa. Deadline-lajittelussa päivämäärät järjestetään aikaisimmasta alkaen ja puuttuvat päivämäärät viimeiseksi. Oletusjärjestys säilyy entisenä: viimeksi tuodut ensin. Lajittelu koskee koko suodatettua tulosjoukkoa ennen sivutusta; valinnan vaihtaminen palauttaa ensimmäiselle sivulle. Se ei muuta tallennettuja tietoja. API:ssa vastaavat `sort`-arvot ovat `relevance_desc`, `relevance_asc`, `deadline_asc` ja `default`.
+Hankelistojen **Lajittelu**-valinnasta voi valita **Relevanssi: suurin ensin**, **Relevanssi: pienin ensin**, **Deadline: lähin ensin**, **Deadline: kaukaisin ensin**, **Hylkäyspäivä: uusin ensin**, **Hylkäyspäivä: vanhin ensin** tai **Oletusjärjestys**. Puuttuvat pisteet tai päivämäärät tulevat kyseisessä lajittelussa loppuun molemmissa suunnissa. Oletusjärjestys säilyy entisenä: viimeksi tuodut ensin. Lajittelu koskee koko suodatettua tulosjoukkoa ennen sivutusta; valinnan vaihtaminen palauttaa ensimmäiselle sivulle. Se ei muuta tallennettuja tietoja. API:ssa vastaavat `sort`-arvot ovat `relevance_desc`, `relevance_asc`, `deadline_asc`, `deadline_desc`, `rejected_at_desc`, `rejected_at_asc` ja `default`.
+
+**Hylkää** tallentaa päätöksen ajankohdan UTC:ssa. Hylätyn hankkeen kortti ja Lisätiedot näyttävät päivämäärän ja kellonajan Helsingin ajassa. **Arvioimatta** tai muu tilanvaihto pois hylätystä poistaa aikaleiman; uusi hylkäys saa uuden ajan. Toistettu hylkäys säilyttää aiemman ajan. Vanhoille hylkäyksille, joiden aikaa ei ole tallennettu, näytetään **Hylätty: Ei tiedossa**.
 
 ## Relevanssin hakusanat ja pisteytys
 
@@ -60,11 +62,13 @@ Pisteytys lukee nimen, kuvauksen, rahaston ja kategorian. Kukin eri kiinnostava 
 
 Vertailu tunnistaa kokonaiset sanat ja ilmaukset kirjainkoosta riippumatta. Ääkköset ja ilmauksen sisäiset välilyönnit/rivinvaihdot huomioidaan. Esimerkiksi `AI` ei osu sanaan `taidot`. Suomen taivutusmuotoja tai synonyymejä ei tunnisteta: `koulutus` ei osu sanaan `koulutuksen`. Lisää tarvittavat muodot erillisille riveille. Tulos on yksinkertainen suositus, eikä se käytä kielimallia tai ulkoista analyysipalvelua.
 
-**Pisteytys ei poista hakuja eikä muuta Osallistu/Hylkää-päätöksiä tai osallistumistietoja.** Hakusanojen tallennus ja tuonti eivät automaattisesti pisteytä hakuja. Aja pisteytys uudelleen tuonnin tai hakusanojen muuttamisen jälkeen. Vanhat pisteet ja niiden perustelut säilyvät siihen asti; jo päättyneiden hakujen pisteitä ei päivitetä. Uudelleenanalyysi korvaa edellisen pistemäärän ja perustelun, erillistä analyysihistoriaa ei tallenneta.
+**Pisteytys ei poista hakuja eikä muuta Osallistu/Hylkää-päätöksiä tai osallistumistietoja.** Hakusanojen tallennus ja tuonti eivät automaattisesti pisteytä hakuja. Aja pisteytys uudelleen tuonnin tai hakusanojen muuttamisen jälkeen. Vanhat pisteet ja niiden perustelut säilyvät siihen asti. **Pisteytä kaikki haut** päivittää myös päättyneiden hakujen pisteet, perustelut ja osumat nykyisillä tallennetuilla hakusanoilla. Uudelleenanalyysi korvaa edellisen pistemäärän ja perustelun, erillistä analyysihistoriaa ei tallenneta.
 
-MVP käyttää yhtä `SearchProfile`-riviä nimeltä `HankeVAHTI: relevanssi`. Muut mahdolliset profiilit säilyvät ennallaan eikä niitä yhdistetä tähän pisteytykseen. Tulos tallennetaan olemassa oleviin `Evaluation.suitability_score`- ja `suitability_summary`-kenttiin, joten ominaisuus ei vaadi uutta migraatiota. Pelkkä sivun avaaminen ei luo profiilia tai pisteytä hakuja.
+MVP käyttää yhtä `SearchProfile`-riviä nimeltä `HankeVAHTI: relevanssi`. Muut mahdolliset profiilit säilyvät ennallaan eikä niitä yhdistetä tähän pisteytykseen. Pisteiden ja perustelun lisäksi viimeisimmän pisteytyksen osumat tallennetaan `Evaluation.matched_keywords`- ja `matched_excluded_keywords`-kenttiin. Lisätiedot näyttää listat erikseen ja lihavoi kuvauksessa esiintyvät positiiviset hakusanaosumat. Korostus käyttää tallennettua pisteytystä, joten hakusanojen muuttaminen vaikuttaa siihen vasta uudelleenpisteytyksessä. Pelkkä sivun avaaminen ei luo profiilia tai pisteytä hakuja.
 
-Pisteytys on erillisessä `app/services/relevance.py`-palvelussa. `score_funding_calls(session)` käsittelee kaikki päättymättömät haut; valinnainen `call_ids` rajaa ajon esimerkiksi uusiin tai muuttuneisiin hakuihin. Importerien nykyistä toimintaa ei ole muutettu. Pistepainot ja luokkarajat ovat keskitetysti tiedostossa `app/evaluators/relevance.py`.
+Hylkäysajan ja rakenteisten osumien käyttöönotto vaatii migraation **0006_evaluation_decisions_matches**. Ota nykyisestä tietokannasta varmuuskopio sovelluksen ollessa suljettuna ja suorita `python -m alembic upgrade head` ennen päivitetyn sovelluksen käynnistämistä. Vanhojen arvioiden uudet kentät jäävät tyhjiksi. Paina **Asetukset → Pisteytä kaikki haut**, jotta myös vanhojen päättyneiden hakujen osumat tallentuvat. Tallentamattomat osumat erotetaan pisteytetystä tyhjästä listasta (**Ei osumia**). Migraation downgrade poistaa vain kolme uutta kenttää ja niiden tiedot.
+
+Pisteytys on erillisessä `app/services/relevance.py`-palvelussa. `score_funding_calls(session)` käsittelee kaikki päättymättömät haut; valinnainen `call_ids` rajaa ajon esimerkiksi uusiin tai muuttuneisiin hakuihin. `include_ended=True` ottaa myös päättyneet haut mukaan. Importerien nykyistä toimintaa ei ole muutettu. Pistepainot ja luokkarajat ovat keskitetysti tiedostossa `app/evaluators/relevance.py`.
 
 ## Gemini AI -sparraaja (prototyyppi)
 
@@ -106,7 +110,7 @@ Prototyyppi käsittelee jokaisen kysymyksen itsenäisesti: aiempia kysymyksiä j
 python -m pytest
 ```
 
-Tietokantatestit käyttävät erillistä väliaikaista SQLite-tietokantaa eivätkä tarvitse verkkopalveluja. Nykyinen `test_app.py`-tiedoston etusivutesti lukee kuitenkin sovelluksen normaalia tietokantaa, joten käynnistysohjeen migraatiot tulee suorittaa ennen koko testisarjaa. Uudet relevanssi- ja käyttöliittymätestit käyttävät väliaikaista kantaa.
+Tietokantatestit, etusivutesti ja käyttöliittymätestit käyttävät erillistä väliaikaista SQLite-tietokantaa eivätkä tarvitse verkkopalveluja. Migraation upgrade ja downgrade testataan väliaikaisessa kannassa; omaa tietokantaa ei tarvitse päivittää testisarjan ajamista varten.
 
 Relevanssitestit voi ajaa erikseen:
 

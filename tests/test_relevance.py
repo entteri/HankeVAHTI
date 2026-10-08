@@ -1,5 +1,5 @@
 import unicodedata
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import pytest
 from sqlalchemy import func, select
@@ -186,3 +186,31 @@ def test_scoring_failure_rolls_back_entire_batch(db_session, monkeypatch):
         score_funding_calls(db_session)
     db_session.expire_all()
     assert list(db_session.scalars(select(Evaluation.suitability_score))) == [80, 80]
+
+
+def test_explicit_rescoring_can_include_ended_calls_and_respects_ids(db_session):
+    ended = FundingCall(source="EURA", source_id="ended", title="Koulutus", description="rakentaminen",
+                        application_end_date=date(2020, 1, 1),
+                        evaluation=Evaluation(status=EvaluationStatus.REJECTED, suitability_score=80,
+                                              suitability_summary="Vanha perustelu", ai_summary="AI-teksti",
+                                              rejected_at=datetime(2020, 1, 2, 10, 30)),
+                        participation=Participation(notes="Muistiinpano", responsible_person="Risto", next_action="Palaveri"))
+    other = FundingCall(source="EURA", source_id="other", title="Koulutus", application_end_date=date(2020, 1, 1))
+    db_session.add_all([ended, other])
+    db_session.commit()
+    save_keyword_settings(db_session, ["koulutus"], ["rakentaminen"])
+    assert score_funding_calls(db_session, call_ids=[ended.id], as_of=date(2026, 10, 8)) == 0
+    assert ended.evaluation.matched_keywords is None
+    assert score_funding_calls(db_session, call_ids=[], include_ended=True) == 0
+    assert score_funding_calls(db_session, call_ids=[ended.id], include_ended=True) == 1
+    db_session.expire_all()
+    assert ended.evaluation.matched_keywords == ["koulutus"]
+    assert ended.evaluation.matched_excluded_keywords == ["rakentaminen"]
+    assert ended.evaluation.suitability_score == 0
+    assert ended.evaluation.status is EvaluationStatus.REJECTED
+    assert ended.evaluation.rejected_at == datetime(2020, 1, 2, 10, 30)
+    assert ended.evaluation.ai_summary == "AI-teksti"
+    assert ended.participation.notes == "Muistiinpano"
+    assert ended.participation.responsible_person == "Risto"
+    assert ended.participation.next_action == "Palaveri"
+    assert other.evaluation is None

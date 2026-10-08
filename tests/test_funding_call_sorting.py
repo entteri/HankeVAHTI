@@ -3,7 +3,7 @@ from datetime import date, datetime, timezone
 
 import pytest
 from nicegui import ui
-from sqlalchemy import select
+from sqlalchemy import event, select
 
 from app.models import Evaluation, EvaluationStatus, FundingCall, Participation, ParticipationStage
 from app.services.funding_calls import FundingCallSort, list_funding_calls
@@ -72,14 +72,16 @@ def test_sort_applies_after_filters_and_before_pagination_with_stable_ties(db_se
     assert names == ["Koulutus korkea uudempi", "Koulutus korkea vanhempi", "Koulutus matala"]
 
 
-def test_sort_preserves_ongoing_filter(db_session):
+@pytest.mark.parametrize("sort", [FundingCallSort.RELEVANCE_DESC, FundingCallSort.DEADLINE_DESC,
+                                 FundingCallSort.REJECTED_AT_ASC, FundingCallSort.REJECTED_AT_DESC])
+def test_sort_preserves_ongoing_filter(db_session, sort):
     for title, score, stage in [("Aktiivinen 20", 20, ParticipationStage.PLANNING),
                                 ("Aktiivinen 80", 80, ParticipationStage.NOT_STARTED),
                                 ("Valmis", 100, ParticipationStage.COMPLETED)]:
         call = _add_call(db_session, title, score, status=EvaluationStatus.PARTICIPATE)
         call.participation = Participation(stage=stage)
     db_session.commit()
-    calls, total = list_funding_calls(db_session, ongoing_only=True, sort=FundingCallSort.RELEVANCE_DESC)
+    calls, total = list_funding_calls(db_session, ongoing_only=True, sort=sort)
     assert total == 2
     assert [call.suitability_score for call in calls] == [80, 20]
 
@@ -140,7 +142,9 @@ def test_ui_sorts_filtered_results_and_keeps_sort_after_decisions(db_session, mo
     }
 
 
-def test_ui_sort_resets_page_to_first(db_session, monkeypatch):
+@pytest.mark.parametrize("sort,first", [("relevance_asc", "00"), ("deadline_desc", "24"),
+                                       ("rejected_at_asc", "24"), ("rejected_at_desc", "24")])
+def test_ui_sort_resets_page_to_first(db_session, monkeypatch, sort, first):
     for index in range(25):
         _add_call(db_session, f"Testihaku {index:02}", index)
     db_session.commit()
@@ -156,6 +160,83 @@ def test_ui_sort_resets_page_to_first(db_session, monkeypatch):
 
         client.portal.call(next_page)
         assert len(_titles(page)) == 5
-        client.portal.call(_change, page, ui.select, "Lajittelu", "relevance_asc")
+        client.portal.call(_change, page, ui.select, "Lajittelu", sort)
         assert len(_titles(page)) == 20
-        assert _titles(page)[0] == "Testihaku 00"
+        assert _titles(page)[0] == f"Testihaku {first}"
+
+
+@pytest.mark.parametrize("sort,field,descending", [
+    (FundingCallSort.DEADLINE_ASC, "application_end_date", False),
+    (FundingCallSort.DEADLINE_DESC, "application_end_date", True),
+    (FundingCallSort.REJECTED_AT_ASC, "rejected_at", False),
+    (FundingCallSort.REJECTED_AT_DESC, "rejected_at", True),
+])
+def test_date_sort_filters_pagination_nulls_stability_and_no_writes(db_session, sort, field, descending):
+    def add(title, day, status=EvaluationStatus.REJECTED, evaluation=True):
+        call = _add_call(db_session, title, status=status, evaluation=evaluation)
+        if day is not None:
+            if field == "application_end_date":
+                call.application_end_date = date(2026, 11, day)
+            else:
+                call.evaluation.rejected_at = datetime(2026, 10, day, 6, 34, tzinfo=timezone.utc)
+        return call
+
+    early = add("Testihaku aikaisin", 1)
+    late = add("Testihaku myöhempi", 2)
+    tie = add("Testihaku tasatilanne", 2)
+    missing = add("Testihaku ei aikaa", None)
+    missing_new = add("Testihaku ei aikaa uudempi", None)
+    add("Muu hakunimi", 3)
+    add("Testihaku osallistutaan", 3, EvaluationStatus.PARTICIPATE)
+    no_evaluation = add("Ilman arviointia", None, evaluation=False)
+    db_session.commit()
+    expected = [tie.id, late.id, early.id] if descending else [early.id, tie.id, late.id]
+    expected += [missing_new.id, missing.id]
+    statements = []
+
+    def capture(connection, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    engine = db_session.get_bind()
+    event.listen(engine, "before_cursor_execute", capture)
+    try:
+        actual = []
+        for page in range(1, 6):
+            calls, total = list_funding_calls(db_session, sort=sort, search="Testihaku",
+                                              status=EvaluationStatus.REJECTED, page=page, page_size=1)
+            assert total == 5
+            actual.append(calls[0].id)
+        assert actual == expected
+        calls, _ = list_funding_calls(db_session, sort=sort)
+        # Myös kokonaan puuttuva Evaluation päätyy puuttuvien arvojen joukkoon.
+        known = [call for call in calls if getattr(call, field) is not None]
+        unknown = [call for call in calls if getattr(call, field) is None]
+        assert calls == known + unknown
+        assert no_evaluation.id in [call.id for call in unknown]
+        assert not db_session.new and not db_session.dirty and not db_session.deleted
+        assert statements and all(statement.lstrip().upper().startswith("SELECT") for statement in statements)
+    finally:
+        event.remove(engine, "before_cursor_execute", capture)
+
+
+@pytest.mark.parametrize("sort,expected", [
+    ("deadline_desc", ["Testihaku myöhäinen", "Testihaku aikainen", "Testihaku puuttuva"]),
+    ("rejected_at_desc", ["Testihaku myöhäinen", "Testihaku aikainen", "Testihaku puuttuva"]),
+    ("rejected_at_asc", ["Testihaku aikainen", "Testihaku myöhäinen", "Testihaku puuttuva"]),
+])
+def test_new_sorts_through_api_and_ui(db_session, monkeypatch, sort, expected):
+    for title, day in [("Testihaku myöhäinen", 2), ("Testihaku aikainen", 1), ("Testihaku puuttuva", None)]:
+        call = _add_call(db_session, title, status=EvaluationStatus.REJECTED,
+                         deadline=date(2026, 11, day) if day else None)
+        call.evaluation.rejected_at = datetime(2026, 10, day, 6, 34, tzinfo=timezone.utc) if day else None
+    db_session.commit()
+    with _test_client(db_session, monkeypatch) as client:
+        response = client.get("/api/funding-calls", params={"sort": sort, "status": "REJECTED", "search": "Testihaku"})
+        assert response.status_code == 200
+        assert [item["title"] for item in response.json()["items"]] == expected
+        assert client.get("/api/funding-calls?sort=unknown").status_code == 422
+        page = _page_client(client.get("/hylatyt"))
+        client.portal.call(_change, page, ui.select, "Lajittelu", sort)
+        assert _titles(page) == expected
+        client.portal.call(_click, page, "Arvioimatta")
+        assert _titles(page) == expected[1:]

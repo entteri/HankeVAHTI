@@ -1,7 +1,9 @@
 """Hankkeiden selailu, lisätiedot ja osallistumispäätökset."""
 
 import asyncio
+from datetime import datetime, timezone
 from math import ceil
+from zoneinfo import ZoneInfo
 
 from nicegui import ui
 
@@ -12,12 +14,16 @@ from app.services.ai_summary import SummaryError, generate_ai_summary
 from app.services.duplicates import DuplicateMatch, find_duplicate_matches
 from app.services.funding_calls import FundingCallSort, FundingCallView, list_funding_calls, set_funding_call_status
 from app.ui.ai_assistant import ai_assistant_dialog
+from app.ui.keyword_highlights import highlight_keywords
 
 SORT_LABELS = {
     FundingCallSort.DEFAULT.value: "Oletusjärjestys",
     FundingCallSort.RELEVANCE_DESC.value: "Relevanssi: suurin ensin",
     FundingCallSort.RELEVANCE_ASC.value: "Relevanssi: pienin ensin",
     FundingCallSort.DEADLINE_ASC.value: "Deadline: lähin ensin",
+    FundingCallSort.DEADLINE_DESC.value: "Deadline: kaukaisin ensin",
+    FundingCallSort.REJECTED_AT_DESC.value: "Hylkäyspäivä: uusin ensin",
+    FundingCallSort.REJECTED_AT_ASC.value: "Hylkäyspäivä: vanhin ensin",
 }
 
 STATUS_LABELS = {
@@ -44,6 +50,32 @@ def _date(value) -> str:
     return value.strftime("%d.%m.%Y") if value else "Ei tiedossa"
 
 
+def _rejected_at(value: datetime | None) -> str:
+    if value is None:
+        return "Ei tiedossa"
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(ZoneInfo("Europe/Helsinki")).strftime("%d.%m.%Y klo %H:%M")
+
+
+def _keyword_badges(title: str, words: list[str] | None, *, scored: bool, excluded: bool = False) -> None:
+    ui.label(title).classes("font-medium")
+    if words is None:
+        ui.label(
+            "Osumatietoja ei ole tallennettu. Valitse Asetukset → Pisteytä kaikki haut, "
+            "jotta myös päättyneiden hakujen osumat päivittyvät."
+            if scored else "Ei vielä pisteytetty"
+        )
+    elif not words:
+        ui.label("Ei osumia")
+    else:
+        with ui.row().classes("gap-2 flex-wrap"):
+            for word in words:
+                badge = ui.badge(word)
+                if excluded:
+                    badge.props("color=red-1 text-color=red-8")
+
+
 def _details_dialog(call: FundingCallView, duplicate_matches: list[DuplicateMatch]):
     with ui.dialog() as dialog, ui.card().classes("w-full max-w-2xl p-5"):
         ui.label(call.title).classes("text-xl font-bold")
@@ -51,6 +83,8 @@ def _details_dialog(call: FundingCallView, duplicate_matches: list[DuplicateMatc
         ui.label(f"Lähde: {call.source}")
         ui.label(f"Hakuaika: {_date(call.application_start_date)} – {_date(call.application_end_date)}")
         ui.label(f"Tila: {STATUS_LABELS[call.status]}")
+        if call.status is EvaluationStatus.REJECTED:
+            ui.label(f"Hylätty: {_rejected_at(call.rejected_at)}")
         if duplicate_matches:
             ui.separator()
             ui.label("Mahdollinen duplikaatti").classes("text-lg font-semibold text-orange-800")
@@ -65,15 +99,25 @@ def _details_dialog(call: FundingCallView, duplicate_matches: list[DuplicateMatc
         ui.label("Relevanssianalyysi").classes("text-lg font-semibold")
         ui.label(f"Relevanssi: {str(call.suitability_score) + ' / 100' if call.suitability_score is not None else 'Ei vielä pisteytetty'}")
         ui.label(f"Luokitus: {relevance_label(call.suitability_score)}")
+        scored = call.suitability_score is not None or bool(call.suitability_summary)
+        _keyword_badges("Osuneet hakusanat", call.matched_keywords, scored=scored)
+        _keyword_badges("Poissulkevat osumat", call.matched_excluded_keywords, scored=scored, excluded=True)
         if call.suitability_summary:
-            ui.label("Tallennetun pisteytyksen perustelu ja osumat").classes("font-medium")
-            ui.label(call.suitability_summary).classes("whitespace-pre-wrap")
+            # Osumat näytetään yllä rakenteisista kentistä; säilytä laskennan perustelu.
+            explanation = "\n".join(
+                line for line in call.suitability_summary.splitlines()
+                if not line.startswith(("Osuvat hakusanat (", "Poissulkevat osumat ("))
+            ).strip()
+            if explanation:
+                ui.label(explanation).classes("whitespace-pre-wrap")
         ui.label("Suositus ei muuta osallistumispäätöstä. Pisteytys päivitetään Asetukset-sivulla.").classes("text-sm text-gray-600")
         if call.ai_summary:
             ui.label("Tekoälyn yhteenveto").classes("font-semibold")
             ui.label(call.ai_summary).classes("whitespace-pre-wrap")
         ui.separator()
-        ui.label(call.description or "Kuvausta ei ole saatavilla.").classes("whitespace-pre-wrap")
+        ui.html(highlight_keywords(
+            call.description or "Kuvausta ei ole saatavilla.", call.matched_keywords or [],
+        )).classes("whitespace-pre-wrap")
         if call.source_url:
             label = {
                 "EURA": "Avaa hakuilmoitus EURA:ssa",
@@ -172,6 +216,8 @@ def _render_page(title: str, initial_status: EvaluationStatus | None = None, ong
                     f"{call.call_identifier or call.source_id} · {call.source} · "
                     f"Haku päättyy {_date(call.application_end_date)}"
                 ).classes("text-sm text-gray-600")
+                if call.status is EvaluationStatus.REJECTED:
+                    ui.label(f"Hylätty: {_rejected_at(call.rejected_at)}").classes("text-sm")
                 ui.label(
                     f"Relevanssi: {call.suitability_score} / 100 · {relevance_label(call.suitability_score)}"
                     if call.suitability_score is not None else "Relevanssi: Ei vielä pisteytetty"

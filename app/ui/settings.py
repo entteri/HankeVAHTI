@@ -14,9 +14,9 @@ from app.services.settings import delete_all_funding_calls, funding_call_count
 logger = logging.getLogger(__name__)
 
 
-def _score_from_ui() -> int:
+def _score_from_ui(*, include_ended: bool = False) -> int:
     with SessionLocal() as session:
-        return score_funding_calls(session)
+        return score_funding_calls(session, include_ended=include_ended)
 
 
 def _relevance_settings() -> None:
@@ -47,6 +47,11 @@ def _relevance_settings() -> None:
             "Aja pisteytys uudelleen tuonnin tai hakusanojen muuttamisen jälkeen. "
             "Vanhat pisteet ja perustelut säilyvät uuteen pisteytykseen asti."
         ).classes("text-sm text-gray-600")
+        ui.label(
+            "Pisteytä kaikki haut käsittelee myös päättyneet haut. Se päivittää pisteet, "
+            "perustelut ja hakusanaosumat nykyisillä tallennetuilla hakusanoilla. "
+            "Käytä sitä myös vanhojen hakujen puuttuvien osumatietojen täydentämiseen."
+        ).classes("text-sm text-gray-600")
         feedback = ui.label().classes("text-sm font-medium")
 
         def save() -> None:
@@ -64,12 +69,13 @@ def _relevance_settings() -> None:
             feedback.set_text("Hakusanat tallennettu. Pisteytä haut päivittääksesi tulokset.")
             ui.notify("Relevanssin hakusanat tallennettu.", type="positive")
 
-        async def score() -> None:
+        async def score(*, include_ended: bool = False) -> None:
             save_button.disable()
             score_button.disable()
+            score_all_button.disable()
             feedback.set_text("Pisteytetään tallennetuilla hakusanoilla…")
             try:
-                count = await asyncio.to_thread(_score_from_ui)
+                count = await asyncio.to_thread(_score_from_ui, include_ended=include_ended)
                 feedback.set_text(f"Pisteytetty {count} hakua. Osallistumispäätökset säilytettiin.")
                 ui.notify(f"Pisteytetty {count} hakua.", type="positive")
             except ValueError as exc:
@@ -82,10 +88,12 @@ def _relevance_settings() -> None:
             finally:
                 save_button.enable()
                 score_button.enable()
+                score_all_button.enable()
 
         with ui.row().classes("gap-2 flex-wrap"):
             save_button = ui.button("Tallenna hakusanat", on_click=save)
             score_button = ui.button("Pisteytä päättymättömät haut", on_click=score)
+            score_all_button = ui.button("Pisteytä kaikki haut", on_click=lambda: score(include_ended=True)).props("outline")
             ui.button("Näytä hankkeet", on_click=lambda: ui.navigate.to("/hankkeet")).props("outline")
 
 

@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum as PythonEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Integer, Text, UniqueConstraint
+from sqlalchemy import JSON, CheckConstraint, DateTime, Enum, ForeignKey, Integer, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -33,6 +33,9 @@ class Evaluation(Base):
     suitability_score: Mapped[int | None] = mapped_column(Integer)
     suitability_summary: Mapped[str | None] = mapped_column(Text)
     ai_summary: Mapped[str | None] = mapped_column(Text)
+    rejected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    matched_keywords: Mapped[list[str] | None] = mapped_column(JSON(none_as_null=True))
+    matched_excluded_keywords: Mapped[list[str] | None] = mapped_column(JSON(none_as_null=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 

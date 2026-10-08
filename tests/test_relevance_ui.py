@@ -2,6 +2,7 @@
 
 import asyncio
 import re
+from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
@@ -66,8 +67,17 @@ def test_settings_save_reload_score_and_display_in_list_and_details(db_session, 
         assert "Relevanssi: 80 / 100" in response.text
         assert "Hyvin relevantti" in response.text
         assert "Relevanssianalyysi" in response.text
-        assert "Osuvat hakusanat (4): koulutus, tekoäly, digitaidot, osallisuus" in response.text
-        assert "Poissulkevat osumat (0): ei osumia" in response.text
+        details_page = _page_client(response)
+        labels = [e.text for e in details_page.elements.values() if isinstance(e, ui.label)]
+        badges = [e.text for e in details_page.elements.values() if isinstance(e, ui.badge)]
+        assert all(word in badges for word in ("koulutus", "tekoäly", "digitaidot", "osallisuus"))
+        assert "Ei osumia" in labels
+        assert "Tallennetun pisteytyksen perustelu ja osumat" not in labels
+        assert not any(label.startswith(("Osuvat hakusanat (", "Poissulkevat osumat (")) for label in labels)
+        explanation = next(label for label in labels if label.startswith("Kukin eri hakusana antaa"))
+        assert "Laskenta: 80 − 0, rajattu välille 0–100 = 80." in explanation
+        assert "Vertailu: nimi, kuvaus, rahasto ja kategoria." in explanation
+        assert labels.index("Osuneet hakusanat") < labels.index("Poissulkevat osumat") < labels.index(explanation)
         assert "Osallistu" in response.text
         assert "Hylkää" in response.text
         client.portal.call(_edit, reloaded, "Kiinnostavat hakusanat", "")
@@ -84,24 +94,25 @@ def test_settings_save_reload_score_and_display_in_list_and_details(db_session, 
 
 
 @pytest.mark.parametrize("saved", [False, True])
-def test_scoring_button_recovers_when_profile_missing_or_scoring_fails(db_session, monkeypatch, saved):
+@pytest.mark.parametrize("button_text", ["Pisteytä päättymättömät haut", "Pisteytä kaikki haut"])
+def test_scoring_button_recovers_when_profile_missing_or_scoring_fails(db_session, monkeypatch, saved, button_text):
     monkeypatch.setattr("app.ui.settings.SessionLocal", sessionmaker(bind=db_session.get_bind()))
     if saved:
         save_keyword_settings(db_session, ["koulutus"], [])
 
-        def fail(session):
+        def fail(session, **kwargs):
             raise RuntimeError("Testivirhe")
 
         monkeypatch.setattr("app.ui.settings.score_funding_calls", fail)
     with TestClient(app) as client:
         page = _page_client(client.get("/asetukset"))
-        client.portal.call(_click, page, "Pisteytä päättymättömät haut")
+        client.portal.call(_click, page, button_text)
         labels = [e.text for e in page.elements.values() if isinstance(e, ui.label)]
         expected = ("Pisteytys epäonnistui. Aiemmat tulokset säilytettiin." if saved else
                     "Tallenna relevanssin hakusanat Asetukset-sivulla ennen pisteytystä.")
         assert expected in labels
         buttons = [e for e in page.elements.values() if isinstance(e, ui.button)
-                   and e.text in {"Tallenna hakusanat", "Pisteytä päättymättömät haut"}]
+                   and e.text in {"Tallenna hakusanat", "Pisteytä päättymättömät haut", "Pisteytä kaikki haut"}]
         assert all(button.enabled for button in buttons)
 
 
@@ -112,6 +123,30 @@ def test_unscored_call_shows_no_score_instead_of_zero(db_session, monkeypatch):
         response = client.get("/hankkeet")
     assert "Relevanssi: Ei vielä pisteytetty" in response.text
     assert "Relevanssi: 0 / 100" not in response.text
+
+
+def test_score_all_button_fills_missing_matches_for_ended_calls(db_session, monkeypatch):
+    call = FundingCall(source="EURA", source_id="ended", title="Päättynyt haku", description="Koulutus",
+                       application_end_date=date(2020, 1, 1),
+                       evaluation=Evaluation(status=EvaluationStatus.INTERESTING, suitability_score=80))
+    db_session.add(call)
+    db_session.commit()
+    save_keyword_settings(db_session, ["koulutus"], [])
+    monkeypatch.setattr("app.ui.settings.SessionLocal", sessionmaker(bind=db_session.get_bind()))
+    with _test_client(db_session, monkeypatch) as client:
+        page = _page_client(client.get("/asetukset"))
+        client.portal.call(_click, page, "Pisteytä päättymättömät haut")
+        assert client.get(f"/api/funding-calls/{call.id}").json()["matched_keywords"] is None
+        client.portal.call(_click, page, "Pisteytä kaikki haut")
+        payload = client.get(f"/api/funding-calls/{call.id}").json()
+        assert payload["matched_keywords"] == ["koulutus"]
+        assert payload["matched_excluded_keywords"] == []
+        assert payload["status"] == "INTERESTING"
+        result_page = _page_client(client.get("/hankkeet"))
+        labels = [e.text for e in result_page.elements.values() if isinstance(e, ui.label)]
+        assert not any("Osumatietoja ei ole tallennettu" in text for text in labels)
+        assert "koulutus" in [e.text for e in result_page.elements.values() if isinstance(e, ui.badge)]
+        assert any("<strong>Koulutus</strong>" in e.content for e in result_page.elements.values() if isinstance(e, ui.html))
 
 
 @pytest.mark.parametrize("status,path", [

@@ -28,6 +28,51 @@ def normalize_keywords(values: Iterable[str]) -> tuple[str, ...]:
     return tuple(result)
 
 
+def _keyword_pattern(word: str) -> re.Pattern[str]:
+    return re.compile(r"(?<!\w)" + re.escape(word.casefold()) + r"(?!\w)")
+
+
+def keyword_spans(text: str, keywords: Iterable[str]) -> list[tuple[int, int]]:
+    """Palauta osumat alkuperäisen tekstin indekseinä pisteytyksen säännöillä.
+
+    Säilytä indeksikartta Unicode- ja välilyöntinormalisoinnissa sekä
+    casefoldissa (esimerkiksi ß -> ss), jotta esityksen kirjoitusasu ei muutu.
+    """
+    clusters: list[tuple[str, int, int]] = []
+    for index, char in enumerate(text):
+        if clusters and (unicodedata.combining(char) or
+                         unicodedata.normalize("NFC", clusters[-1][0] + char) !=
+                         unicodedata.normalize("NFC", clusters[-1][0]) + unicodedata.normalize("NFC", char)):
+            previous, start, _ = clusters[-1]
+            clusters[-1] = (previous + char, start, index + 1)
+        else:
+            clusters.append((char, index, index + 1))
+    normalized: list[str] = []
+    offsets: list[tuple[int, int]] = []
+    for cluster, start, end in clusters:
+        for char in unicodedata.normalize("NFC", cluster).casefold():
+            if char.isspace():
+                if normalized and normalized[-1] == " ":
+                    offsets[-1] = (offsets[-1][0], end)
+                    continue
+                char = " "
+            normalized.append(char)
+            offsets.append((start, end))
+    searchable = "".join(normalized)
+    spans = sorted(
+        (offsets[match.start()][0], offsets[match.end() - 1][1])
+        for word in normalize_keywords(keywords)
+        for match in _keyword_pattern(word).finditer(searchable)
+    )
+    merged: list[tuple[int, int]] = []
+    for start, end in spans:
+        if merged and start < merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return merged
+
+
 def relevance_label(score: int | None) -> str:
     if score is None:
         return "Ei vielä pisteytetty"
@@ -57,7 +102,7 @@ def evaluate_relevance(
     def matches(words: Iterable[str]) -> tuple[str, ...]:
         return tuple(
             word for word in normalize_keywords(words)
-            if any(re.search(r"(?<!\w)" + re.escape(word.casefold()) + r"(?!\w)", text)
+            if any(_keyword_pattern(word).search(text)
                    for text in texts)
         )
 

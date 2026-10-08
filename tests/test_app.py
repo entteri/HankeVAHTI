@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.ui.dashboard import _import_feedback
+from tests.test_funding_calls import _test_client
 
 
 def test_health_endpoint():
@@ -11,8 +12,8 @@ def test_health_endpoint():
     assert response.json() == {"status": "ok"}
 
 
-def test_dashboard_renders_navigation_and_metrics():
-    with TestClient(app) as client:
+def test_dashboard_renders_navigation_and_metrics(db_session, monkeypatch):
+    with _test_client(db_session, monkeypatch) as client:
         response = client.get("/")
     assert response.status_code == 200
     for text in (
