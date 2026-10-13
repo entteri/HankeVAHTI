@@ -35,7 +35,45 @@ Haeavustuksia-hankkeen **Lisätiedot**-ikkunassa lähdelinkki avaa kyseisen haun
 
 **Asetukset**-sivulla voi tyhjentää kaikki haetut hankkeet ja aloittaa tuonnin alusta. Painike avaa vahvistusikkunan. Tyhjennys poistaa myös hankkeiden arviot ja osallistumistiedot pysyvästi, mutta säilyttää tallennetut hakuehdot.
 
-**Osallistuttavat**-näkymän hankekortissa **Tekoälyn yhteenveto** muodostaa lyhyen päätelmän hankkeen sopivuudesta asiakkaalle. Ylläpidä projektin juuressa UTF-8-muotoisia tiedostoja `asiakas.md` (asiakkaan profiili ja osaaminen) ja `arviokriteerit.md` (arviointiohjeet). Myös nimeä `arviointikriteerit.md` voi käyttää. Tiedostot luetaan aina painiketta painettaessa. Lisää oma `OPENAI_API_KEY` paikalliseen `.env`-tiedostoon; mallin voi vaihtaa `OPENAI_MODEL`-asetuksella. Yhteenveto tallennetaan hankkeelle ja näkyy kortissa sekä lisätiedoissa. Painike lähettää näiden kahden tiedoston sisällön ja hankkeen tiedot OpenAI APIin. Suorita `python -m alembic upgrade head` päivityksen jälkeen.
+**Lisätiedot → Muodosta AI Summary** arvioi rahoitushaun soveltuvuutta Suomen eOppimiskeskus ry:lle jo ennen osallistumispäätöstä. Myös **Osallistuttavat**-näkymän **Tekoälyn yhteenveto** -painike säilyy. Molemmat käyttävät projektin juuressa olevien UTF-8-tiedostojen `organisaatioprofiili.md` ja `ai-summary-prompt.md` koko sisältöä. Tiedostot luetaan jokaisella pyynnöllä projektin sijainnista riippumatta; puuttuva tai tyhjä tiedosto estää pyynnön ja näyttää virheilmoituksen. `asiakas.md` ja `arviointikriteerit.md` säilyvät, mutta niitä ei enää välitetä yhteenvetoon.
+
+Yhteenveto käsittelee sopivuutta, rajoituksia, itsenäistä hakijuutta ja kumppanuutta, mahdollisia rahoituslinjoja, kokonaisarviota, haun tilaa, lisäselvityksiä ja lähdettä. Pyyntö sisältää tallennetun haun tiedot, lähdelinkin ja arviointipäivän Helsingin ajassa. Alkuperäistä hakusivua ei lueta eikä puuttuvia ehtoja täydennetä verkkohakuna. Vastauksen oikeellisuus on tarkistettava alkuperäisestä ilmoituksesta.
+
+Toiminto käyttää nykyistä `OPENAI_API_KEY`- ja `OPENAI_MODEL`-asetusta. Yhteenveto tallennetaan nykyiseen tietokantakenttään; pisteytys, osallistumispäätös ja osallistumistiedot säilyvät. Uusi onnistunut yhteenveto korvaa vanhan. Epäonnistunut pyyntö säilyttää aiemman yhteenvedon. Lisätiedot-ikkuna näyttää pitkän vastauksen kokonaan vieritettävänä tekstinä. Tämä päivitys ei vaadi uutta tietokantamigraatiota.
+
+Paikallinen tarkistus:
+
+1. Käynnistä sovellus projektikansiossa: `.\.venv\Scripts\python.exe main.py`.
+2. Avaa `http://localhost:8080` ja **Arvioi hankkeita → Lisätiedot**. Pelkkä ikkunan avaaminen ei lähetä tekoälypyyntöä.
+3. **Muodosta AI Summary** lähettää oikean OpenAI-pyynnön omalla API-avaimellasi. Paina sitä vain, kun haluat käyttää palvelua.
+4. Tarkista vastauksen otsikot, perustelut, haun tila ja lähde. Varmista, että haku pysyy arvioimattomana ja sen pisteet säilyvät.
+5. Sulje ja avaa Lisätiedot uudelleen: tallennetun vastauksen pitäisi näkyä. Tarkista myös nykyinen yhteenvetopainike Osallistuttavat-näkymässä.
+
+Automaattiset testit eivät kutsu oikeaa tekoälypalvelua: `.\.venv\Scripts\python.exe -m pytest tests/test_ai_summary.py -q`.
+
+## Hankehakemustekstin muotoilu
+
+**Lisätiedot → Muotoile hakemustekstiä** avaa yksittäisen hakemusosion muotoilun. Kirjoita osion kysymys tai otsikko, liitä oma luonnos ja anna tarvittaessa rahoittajan arviointikriteerit sekä positiivinen kokonaisluku merkkimäärärajaksi. Tyhjä merkkiraja tarkoittaa, ettei rajaa ole annettu.
+
+**Muotoile teksti** lähettää syötteet ja tallennetun rahoitushaun tiedot OpenAI-palveluun. Toiminto lukee jokaisella pyynnöllä `organisaatioprofiili.md`- ja `hakemusteksti-prompt.md`-tiedostojen koko sisällön. Se käyttää nykyisiä `OPENAI_API_KEY`- ja `OPENAI_MODEL`-asetuksia. Alkuperäistä hakusivua ei lueta. Työohjeet ovat erillään käyttäjän luonnoksesta ja rahoitushaun aineistosta. Vastauksen siirtoa varten pyydetään JSON-muoto: kopioitava teksti ja mahdolliset lisätietokysymykset erikseen. Sovellus näyttää promptin tarkoittamat teksti- ja merkkimääräosiot käyttöliittymässä.
+
+Tuloksesta lasketaan merkit ohjelmassa, välilyönnit, välimerkit ja rivinvaihdot mukaan lukien. Otsikot ja lisätietokysymykset eivät kuulu laskentaan. Ylitys näytetään merkkien määränä, eikä tekstiä katkaista tai lyhennetä automaattisesti. **Kopioi valmis teksti** kopioi vain hakemustekstin. Tarvittaessa voit myös valita tekstin tuloskentästä ja kopioida sen Ctrl+C:llä. Tarkista tosiasiat ja rahoittajan oma merkkilaskenta ennen käyttöä.
+
+Tekstiä ei tallenneta tietokantaan. Kopioi tulos talteen ennen ikkunan sulkemista. Epäonnistunut uusi pyyntö säilyttää ikkunassa edellisen tuloksen; tulos kuuluu edelliseen onnistuneeseen pyyntöön. Puuttuvat asiakirjat, avain, virheellinen merkkiraja, verkkovirheet ja käyttökelvottomat vastaukset näytetään virheilmoituksina. AI-ohjeet kieltävät tietojen keksimisen, mutta ohjelma ei voi varmistaa kaikkien vastausten asiasisältöä automaattisesti.
+
+### Käyttöliittymän tarkistus ilman API-avainta
+
+Avaa uusi PowerShell-terminaali projektikansiossa. Voit estää paikallisen `.env`-avaimen käyttämisen tässä käynnistyksessä asettamalla prosessin avainarvoksi yhden välilyönnin (tiedostoa ei muuteta):
+
+```powershell
+$env:OPENAI_API_KEY = ' '
+.\.venv\Scripts\python.exe main.py
+```
+
+Avaa `http://localhost:8080`, valitse rahoitushaun **Lisätiedot → Muotoile hakemustekstiä** ja täytä kysymys sekä luonnos. Paina **Muotoile teksti**: näet ilmoituksen puuttuvasta API-avaimesta, eikä OpenAI-pyyntöä tehdä. Merkkirajaksi esimerkiksi `-1` näyttää syötteen tarkistusvirheen. Pelkkä ikkunan avaaminen ei tee kutsua. Ilman avainta ei voi saada aitoa muotoilutulosta; tulos-, ylitys- ja kopiointikäyttäytyminen testataan automaattisesti korvatuilla vastauksilla. Sulje tämä terminaali tarkistuksen jälkeen ja käytä tavalliseen käynnistykseen uutta terminaalia.
+
+Muotoilun automaattiset testit: `.\.venv\Scripts\python.exe -m pytest tests/test_application_text.py -q`. Ne eivät tee oikeita API-kutsuja.
+
 
 REST-rajapinnassa hankkeet löytyvät reiteistä `GET /api/funding-calls`, `GET /api/funding-calls/{id}` ja päätös tallennetaan reitillä `PATCH /api/funding-calls/{id}/status` käyttäen esimerkiksi JSON-runkoa `{"status":"PARTICIPATE"}` tai `{"status":"REJECTED"}`.
 

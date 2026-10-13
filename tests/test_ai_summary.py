@@ -29,8 +29,8 @@ def _selected_call(session):
 
 def test_ai_summary_uses_current_files_and_preserves_manual_evaluation(db_session, tmp_path, monkeypatch):
     call = _selected_call(db_session)
-    profile = tmp_path / "asiakas.md"
-    criteria = tmp_path / "arviointikriteerit.md"
+    profile = tmp_path / "organisaatioprofiili.md"
+    criteria = tmp_path / "ai-summary-prompt.md"
     profile.write_text("Asiakas kouluttaa henkilöstöä digitaidoissa.", encoding="utf-8")
     criteria.write_text("Vertaa asiakkaan osaamista hankkeen tavoitteisiin.", encoding="utf-8")
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
@@ -43,8 +43,8 @@ def test_ai_summary_uses_current_files_and_preserves_manual_evaluation(db_sessio
         payload = json.loads(request.content)
         assert payload["model"] == "test-model"
         assert payload["store"] is False
-        assert "Asiakas kouluttaa henkilöstöä digitaidoissa." in payload["input"]
-        assert "Vertaa asiakkaan osaamista hankkeen tavoitteisiin." in payload["input"]
+        assert "Asiakas kouluttaa henkilöstöä digitaidoissa." in payload["instructions"]
+        assert "Vertaa asiakkaan osaamista hankkeen tavoitteisiin." in payload["instructions"]
         assert "Hanke kehittää henkilöstön digitaitoja." in payload["input"]
         return httpx.Response(200, json={
             "status": "completed",
@@ -65,28 +65,26 @@ def test_ai_summary_uses_current_files_and_preserves_manual_evaluation(db_sessio
 def test_ai_summary_requires_profile_and_selected_call(db_session, tmp_path, monkeypatch):
     call = _selected_call(db_session)
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    with pytest.raises(SummaryError, match="asiakas.md puuttuu"):
-        generate_ai_summary(db_session, call.id, profile_path=tmp_path / "asiakas.md")
+    with pytest.raises(SummaryError, match="organisaatioprofiili.md puuttuu"):
+        generate_ai_summary(db_session, call.id, profile_path=tmp_path / "organisaatioprofiili.md")
 
-    call.evaluation.status = EvaluationStatus.REJECTED
-    db_session.commit()
-    with pytest.raises(SummaryError, match="valituista hankkeista"):
-        generate_ai_summary(db_session, call.id)
+    with pytest.raises(SummaryError, match="ei löydy"):
+        generate_ai_summary(db_session, call.id + 100)
 
 
 def test_ai_summary_failure_keeps_previous_summary(db_session, tmp_path, monkeypatch):
     call = _selected_call(db_session)
     call.evaluation.ai_summary = "Aiempi yhteenveto"
     db_session.commit()
-    profile = tmp_path / "asiakas.md"
-    criteria = tmp_path / "arviokriteerit.md"
+    profile = tmp_path / "organisaatioprofiili.md"
+    criteria = tmp_path / "ai-summary-prompt.md"
     profile.write_text("Asiakas", encoding="utf-8")
     criteria.write_text("Kriteerit", encoding="utf-8")
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
     with httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(503))) as client:
         with pytest.raises(SummaryError, match="Tekoälypalveluun"):
-            generate_ai_summary(db_session, call.id, client=client, profile_path=profile, criteria_path=criteria)
+            generate_ai_summary(db_session, call.id, client=client, profile_path=profile, prompt_path=criteria)
 
     db_session.refresh(call.evaluation)
     assert call.evaluation.ai_summary == "Aiempi yhteenveto"
@@ -94,8 +92,8 @@ def test_ai_summary_failure_keeps_previous_summary(db_session, tmp_path, monkeyp
 
 @pytest.fixture
 def context_files(tmp_path, monkeypatch):
-    (tmp_path / "asiakas.md").write_text("Asiakas", encoding="utf-8")
-    (tmp_path / "arviointikriteerit.md").write_text("Kriteerit", encoding="utf-8")
+    (tmp_path / "organisaatioprofiili.md").write_text("Asiakas", encoding="utf-8")
+    (tmp_path / "ai-summary-prompt.md").write_text("Kriteerit", encoding="utf-8")
     monkeypatch.setattr("app.services.ai_summary.PROJECT_ROOT", tmp_path)
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
@@ -202,3 +200,116 @@ def test_summary_button_prevents_duplicate_requests_and_recovers_after_failure(d
         assert new_button.enabled
         client.portal.call(_click, page, "Tekoälyn yhteenveto")
         assert len(calls) == 2
+
+
+@pytest.mark.parametrize("filename", ["organisaatioprofiili.md", "ai-summary-prompt.md"])
+@pytest.mark.parametrize("content", [None, "  \n\t"])
+def test_missing_or_empty_document_preserves_summary(db_session, tmp_path, monkeypatch, context_files, filename, content):
+    call = _selected_call(db_session)
+    call.evaluation.ai_summary = "Vanha arvio"
+    db_session.commit()
+    path = tmp_path / filename
+    if content is None:
+        path.unlink()
+    else:
+        path.write_text(content, encoding="utf-8")
+    def unexpected(request):
+        pytest.fail("Invalid documents must not send an AI request")
+    with httpx.Client(transport=httpx.MockTransport(unexpected)) as client:
+        with pytest.raises(SummaryError, match=filename):
+            generate_ai_summary(db_session, call.id, client=client)
+    db_session.refresh(call.evaluation)
+    assert call.evaluation.ai_summary == "Vanha arvio"
+
+
+def test_new_call_details_generate_long_summary_without_changing_decision(db_session, monkeypatch, context_files):
+    from datetime import date, datetime
+    from zoneinfo import ZoneInfo
+    from app.models import Participation
+    call = _selected_call(db_session)
+    call.evaluation.status = EvaluationStatus.NEW
+    call.application_start_date = date(2026, 10, 1)
+    call.application_end_date = date(2026, 11, 1)
+    db_session.commit()
+    long_summary = "### Kokonaisarvio\nVaatii lisäselvitystä.\n" + "Perustelu. " * 1000
+    requests = []
+    def handler(request):
+        payload = json.loads(request.content)
+        data = json.loads(payload["input"])
+        requests.append(data)
+        assert "Asiakas" in payload["instructions"]
+        assert "Kriteerit" in payload["instructions"]
+        assert "Asiakas" not in payload["input"]
+        assert data["funding_call"]["title"] == call.title
+        assert data["funding_call"]["description"] == call.description
+        assert data["funding_call"]["source"] == "EURA"
+        assert data["funding_call"]["fund"] == "ESR+"
+        assert data["funding_call"]["application_start_date"] == "2026-10-01"
+        assert data["funding_call"]["application_end_date"] == "2026-11-01"
+        assert data["funding_call"]["source_url"].startswith("https://")
+        assert data["assessment_date"] == datetime.now(ZoneInfo("Europe/Helsinki")).date().isoformat()
+        assert data["source_page_read"] is False
+        assert payload["max_output_tokens"] > 350
+        return httpx.Response(200, json={"status": "completed", "output": [{"type": "message", "content": [{"type": "output_text", "text": long_summary}]}]})
+    with httpx.Client(transport=httpx.MockTransport(handler)) as api_client:
+        monkeypatch.setattr("app.ui.funding_calls.generate_ai_summary", lambda session, call_id: generate_ai_summary(session, call_id, client=api_client))
+        with _test_client(db_session, monkeypatch) as client:
+            page = _page_client(client.get("/arvioi"))
+            assert not requests
+            client.portal.call(_click, page, "Lisätiedot")
+            client.portal.call(_click, page, "Muodosta AI Summary")
+            assert len(requests) == 1
+            assert long_summary.strip() in [e.text for e in page.elements.values() if isinstance(e, ui.label)]
+            saved = client.get(f"/api/funding-calls/{call.id}").json()
+            assert saved["status"] == "NEW"
+            assert saved["suitability_score"] == 80
+            assert saved["ai_summary"] == long_summary.strip()
+    db_session.refresh(call.evaluation)
+    assert call.evaluation.suitability_summary == "Oma arvio"
+    assert db_session.scalar(select(Participation)) is None
+
+
+def test_missing_source_fields_and_malformed_response(db_session, context_files):
+    call = _selected_call(db_session)
+    call.source = "OTHER"
+    call.source_url = None
+    call.description = None
+    call.evaluation.ai_summary = "Vanha arvio"
+    db_session.commit()
+    def handler(request):
+        data = json.loads(json.loads(request.content)["input"])["funding_call"]
+        assert data["description"] is None
+        assert data["source_url"] is None
+        assert data["application_end_date"] is None
+        return httpx.Response(200, text="invalid JSON")
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(SummaryError, match="virheellisen vastauksen"):
+            generate_ai_summary(db_session, call.id, client=client)
+    db_session.refresh(call.evaluation)
+    assert call.evaluation.ai_summary == "Vanha arvio"
+
+
+def test_documents_read_again_and_independent_of_working_directory(tmp_path, monkeypatch):
+    from app.services.ai_documents import read_ai_document
+    from app.core.config import PROJECT_ROOT
+    monkeypatch.chdir(tmp_path)
+    assert read_ai_document("organisaatioprofiili.md") == (PROJECT_ROOT / "organisaatioprofiili.md").read_text(encoding="utf-8")
+    document = tmp_path / "prompt.md"
+    document.write_text("Ensimmäinen", encoding="utf-8")
+    assert read_ai_document("prompt.md", root=tmp_path) == "Ensimmäinen"
+    document.write_text("Toinen", encoding="utf-8")
+    assert read_ai_document("prompt.md", root=tmp_path) == "Toinen"
+
+
+@pytest.mark.parametrize("error", [httpx.ConnectError("offline"), httpx.ReadTimeout("timeout")])
+def test_network_failure_preserves_previous_summary(db_session, context_files, error):
+    call = _selected_call(db_session)
+    call.evaluation.ai_summary = "Vanha arvio"
+    db_session.commit()
+    def handler(request):
+        raise error
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(SummaryError, match="Tekoälypalveluun"):
+            generate_ai_summary(db_session, call.id, client=client)
+    db_session.refresh(call.evaluation)
+    assert call.evaluation.ai_summary == "Vanha arvio"

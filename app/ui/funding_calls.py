@@ -14,6 +14,7 @@ from app.services.ai_summary import SummaryError, generate_ai_summary
 from app.services.duplicates import DuplicateMatch, find_duplicate_matches
 from app.services.funding_calls import FundingCallSort, FundingCallView, list_funding_calls, set_funding_call_status
 from app.ui.ai_assistant import ai_assistant_dialog
+from app.ui.application_text import application_text_dialog
 from app.ui.keyword_highlights import highlight_keywords
 
 SORT_LABELS = {
@@ -76,8 +77,8 @@ def _keyword_badges(title: str, words: list[str] | None, *, scored: bool, exclud
                     badge.props("color=red-1 text-color=red-8")
 
 
-def _details_dialog(call: FundingCallView, duplicate_matches: list[DuplicateMatch]):
-    with ui.dialog() as dialog, ui.card().classes("w-full max-w-2xl p-5"):
+def _details_dialog(call: FundingCallView, duplicate_matches: list[DuplicateMatch], create_summary):
+    with ui.dialog() as dialog, ui.card().classes("w-full max-w-2xl p-5 max-h-[90vh] overflow-y-auto"):
         ui.label(call.title).classes("text-xl font-bold")
         ui.label(f"Hakutunnus: {call.call_identifier or call.source_id}")
         ui.label(f"Lähde: {call.source}")
@@ -111,9 +112,16 @@ def _details_dialog(call: FundingCallView, duplicate_matches: list[DuplicateMatc
             if explanation:
                 ui.label(explanation).classes("whitespace-pre-wrap")
         ui.label("Suositus ei muuta osallistumispäätöstä. Pisteytys päivitetään Asetukset-sivulla.").classes("text-sm text-gray-600")
-        if call.ai_summary:
-            ui.label("Tekoälyn yhteenveto").classes("font-semibold")
-            ui.label(call.ai_summary).classes("whitespace-pre-wrap")
+        ui.label("Tekoälyn yhteenveto").classes("font-semibold")
+        summary_text = ui.label(call.ai_summary or "Yhteenvetoa ei ole vielä muodostettu.").classes("w-full whitespace-pre-wrap break-words")
+        ui.label(
+            "Painike lähettää haun tiedot, organisaatioprofiilin ja yhteenveto-ohjeen OpenAI-palveluun. "
+            "Alkuperäistä hakusivua ei lueta. Arvio ei muuta pisteitä tai osallistumispäätöstä."
+        ).classes("text-sm text-gray-600")
+        ui.button(
+            "Muodosta AI Summary",
+            on_click=lambda event: create_summary(call.id, event.sender, summary_text),
+        ).props("outline")
         ui.separator()
         ui.html(highlight_keywords(
             call.description or "Kuvausta ei ole saatavilla.", call.matched_keywords or [],
@@ -125,6 +133,7 @@ def _details_dialog(call: FundingCallView, duplicate_matches: list[DuplicateMatc
             }.get(call.source, "Avaa lähde")
             ui.link(label, call.source_url, new_tab=True)
         ui.button("AI-sparraaja", on_click=lambda: ai_assistant_dialog(call).open())
+        ui.button("Muotoile hakemustekstiä", on_click=lambda: application_text_dialog(call).open()).props("outline")
         ui.button("Sulje", on_click=dialog.close)
     return dialog
 
@@ -143,27 +152,32 @@ def _render_page(title: str, initial_status: EvaluationStatus | None = None, ong
         state["page"] = 1
         render_rows.refresh()
 
-    async def create_summary(call_id: int, button: ui.button) -> None:
+    async def create_summary(call_id: int, button: ui.button, summary_text: ui.label | None = None) -> None:
         if call_id in pending_summaries:
             return
         pending_summaries.add(call_id)
         button.disable()
 
-        def generate() -> None:
+        def generate() -> str:
             with SessionLocal() as session:
-                generate_ai_summary(session, call_id)
+                return generate_ai_summary(session, call_id)
 
         try:
-            await asyncio.to_thread(generate)
+            summary = await asyncio.to_thread(generate)
         except SummaryError as exc:
             ui.notify(str(exc), type="negative")
         except Exception:
             ui.notify("Yhteenvedon luonti epäonnistui. Yritä uudelleen.", type="negative")
         else:
+            if summary_text is not None and not summary_text.is_deleted:
+                summary_text.set_text(summary)
             ui.notify("Tekoälyn yhteenveto tallennettu.", type="positive")
         finally:
             pending_summaries.discard(call_id)
-            render_rows.refresh()
+            if summary_text is None:
+                render_rows.refresh()
+            elif not button.is_deleted:
+                button.enable()
 
     def on_search(event) -> None:
         state["search"] = event.value or ""
@@ -205,7 +219,8 @@ def _render_page(title: str, initial_status: EvaluationStatus | None = None, ong
             ui.label("Hankkeita ei löytynyt näillä ehdoilla.").classes("text-gray-600")
         for call in calls:
             call_matches = matches_by_id.get(call.id, [])
-            dialog = _details_dialog(call, call_matches)
+            dialog = _details_dialog(call, call_matches, create_summary)
+            dialog.on("hide", lambda: render_rows.refresh())
             with ui.card().classes("w-full p-4"):
                 with ui.row().classes("w-full items-start justify-between gap-4"):
                     ui.label(call.title).classes("text-lg font-semibold")
@@ -274,7 +289,7 @@ def _render_page(title: str, initial_status: EvaluationStatus | None = None, ong
         ui.label("Pisteet ovat suosituksia. Päivitä pisteytys Asetukset-sivulla tuonnin tai hakusanojen muuttamisen jälkeen.").classes("text-sm text-gray-600")
         if initial_status is EvaluationStatus.PARTICIPATE:
             ui.label(
-                "Tekoälyn yhteenveto lähettää haun tiedot sekä asiakas- ja arviointiohjetiedostojen "
+                "Tekoälyn yhteenveto lähettää haun tiedot sekä organisaatioprofiilin ja peruspromptin "
                 "sisällön OpenAI-palveluun. Yhteenveto tallennetaan hankkeelle; pisteet ja päätös säilyvät."
             ).classes("text-sm text-gray-600")
         with ui.row().classes("w-full gap-3 items-center"):
