@@ -9,10 +9,12 @@ from zoneinfo import ZoneInfo
 import httpx
 from sqlalchemy.orm import Session
 
+from app.core import config
 from app.core.config import PROJECT_ROOT
 from app.models import FundingCall
 from app.services.ai_documents import DocumentError, read_ai_document
 from app.services.funding_calls import _source_url
+from app.services.gemini import GeminiError, generate_gemini_text
 
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
 
@@ -59,8 +61,10 @@ def generate_ai_summary(
 
     profile = _read_context(profile_path or PROJECT_ROOT / "organisaatioprofiili.md")
     prompt = _read_context(prompt_path or PROJECT_ROOT / "ai-summary-prompt.md")
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
+    if config.AI_PROVIDER not in ("gemini", "openai"):
+        raise SummaryError("Tuntematon AI_PROVIDER. Valitse .env-tiedostossa gemini tai openai.")
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if config.AI_PROVIDER == "openai" and not api_key:
         raise SummaryError("OPENAI_API_KEY puuttuu .env-tiedostosta.")
 
     instructions = (
@@ -85,35 +89,41 @@ def generate_ai_summary(
             "source_url": _source_url(call),
         },
     }, ensure_ascii=False)
-    request = {
-        "model": os.getenv("OPENAI_MODEL", "gpt-5.4-mini"),
-        "instructions": instructions,
-        "input": input_text,
-        "max_output_tokens": 4096,
-        "store": False,
-    }
-    try:
-        if client is None:
-            with httpx.Client(timeout=60.0) as owned_client:
-                response = owned_client.post(
+    if config.AI_PROVIDER == "gemini":
+        try:
+            summary = generate_gemini_text(instructions, input_text)
+        except GeminiError as exc:
+            raise SummaryError(str(exc)) from None
+    else:
+        request = {
+            "model": os.getenv("OPENAI_MODEL", "gpt-5.4-mini"),
+            "instructions": instructions,
+            "input": input_text,
+            "max_output_tokens": 4096,
+            "store": False,
+        }
+        try:
+            if client is None:
+                with httpx.Client(timeout=60.0) as owned_client:
+                    response = owned_client.post(
+                        OPENAI_RESPONSES_URL,
+                        headers={"Authorization": f"Bearer {api_key}"},
+                        json=request,
+                    )
+            else:
+                response = client.post(
                     OPENAI_RESPONSES_URL,
                     headers={"Authorization": f"Bearer {api_key}"},
                     json=request,
                 )
-        else:
-            response = client.post(
-                OPENAI_RESPONSES_URL,
-                headers={"Authorization": f"Bearer {api_key}"},
-                json=request,
-            )
-        response.raise_for_status()
-    except httpx.HTTPError as exc:
-        raise SummaryError("Tekoälypalveluun ei saatu yhteyttä. Tarkista API-avain ja yritä uudelleen.") from exc
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise SummaryError("Tekoälypalveluun ei saatu yhteyttä. Tarkista API-avain ja yritä uudelleen.") from exc
 
-    try:
-        summary = _response_text(response.json())
-    except (ValueError, TypeError, AttributeError) as exc:
-        raise SummaryError("Tekoälypalvelu palautti virheellisen vastauksen. Yritä uudelleen.") from exc
+        try:
+            summary = _response_text(response.json())
+        except (ValueError, TypeError, AttributeError) as exc:
+            raise SummaryError("Tekoälypalvelu palautti virheellisen vastauksen. Yritä uudelleen.") from exc
     call.evaluation.ai_summary = summary
     session.commit()
     return summary

@@ -6,10 +6,19 @@ from dataclasses import dataclass
 
 import httpx
 
+from app.core import config
 from app.core.config import PROJECT_ROOT
 from app.services.ai_documents import DocumentError, read_ai_document
 from app.services.ai_summary import OPENAI_RESPONSES_URL, SummaryError, _response_text
 from app.services.funding_calls import FundingCallView
+from app.services.gemini import GeminiError, generate_gemini_text
+
+APPLICATION_TEXT_SCHEMA = {
+    "type": "object",
+    "properties": {"text": {"type": "string"}, "additional_information": {"type": "string"}},
+    "required": ["text", "additional_information"],
+    "additionalProperties": False,
+}
 
 
 class ApplicationTextError(Exception):
@@ -46,8 +55,10 @@ def format_application_text(
         raise ApplicationTextError("Liitä oma hakemustekstiluonnoksesi.")
     if character_limit is not None and (type(character_limit) is not int or character_limit <= 0):
         raise ApplicationTextError("Merkkimäärärajan tulee olla positiivinen kokonaisluku tai tyhjä.")
+    if config.AI_PROVIDER not in ("gemini", "openai"):
+        raise ApplicationTextError("Tuntematon AI_PROVIDER. Valitse .env-tiedostossa gemini tai openai.")
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
-    if not api_key:
+    if config.AI_PROVIDER == "openai" and not api_key:
         raise ApplicationTextError("OPENAI_API_KEY puuttuu .env-tiedostosta. Muotoilu tarvitsee API-avaimen.")
     try:
         profile = read_ai_document("organisaatioprofiili.md", root=PROJECT_ROOT)
@@ -85,17 +96,23 @@ def format_application_text(
         "max_output_tokens": 4096,
         "store": False,
     }
+    if config.AI_PROVIDER == "gemini":
+        try:
+            answer = generate_gemini_text(instructions, payload["input"], json_schema=APPLICATION_TEXT_SCHEMA)
+        except GeminiError as exc:
+            raise ApplicationTextError(str(exc)) from None
+    else:
+        try:
+            if client is None:
+                with httpx.Client(timeout=60.0) as owned_client:
+                    response = owned_client.post(OPENAI_RESPONSES_URL, headers={"Authorization": f"Bearer {api_key}"}, json=payload)
+            else:
+                response = client.post(OPENAI_RESPONSES_URL, headers={"Authorization": f"Bearer {api_key}"}, json=payload)
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise ApplicationTextError("Tekoälypalveluun ei saatu yhteyttä. Tarkista API-avain ja yritä uudelleen.") from exc
     try:
-        if client is None:
-            with httpx.Client(timeout=60.0) as owned_client:
-                response = owned_client.post(OPENAI_RESPONSES_URL, headers={"Authorization": f"Bearer {api_key}"}, json=payload)
-        else:
-            response = client.post(OPENAI_RESPONSES_URL, headers={"Authorization": f"Bearer {api_key}"}, json=payload)
-        response.raise_for_status()
-    except httpx.HTTPError as exc:
-        raise ApplicationTextError("Tekoälypalveluun ei saatu yhteyttä. Tarkista API-avain ja yritä uudelleen.") from exc
-    try:
-        result = json.loads(_response_text(response.json()))
+        result = json.loads(answer if config.AI_PROVIDER == "gemini" else _response_text(response.json()))
         text = result["text"]
         additional = result["additional_information"]
         if not isinstance(text, str) or not isinstance(additional, str) or not (text.strip() or additional.strip()):

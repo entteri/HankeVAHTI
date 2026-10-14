@@ -5,6 +5,8 @@ import logging
 
 from nicegui import ui
 
+from app.core.config import AI_PROVIDER_LABEL
+
 from app.services.application_text import ApplicationTextError, format_application_text
 from app.services.funding_calls import FundingCallView
 
@@ -17,7 +19,7 @@ def application_text_dialog(call: FundingCallView):
         ui.label(call.title).classes("text-lg")
         ui.label(
             "Muotoile-painike lähettää antamasi tekstit, haun tiedot ja organisaatioprofiilin "
-            "OpenAI-palveluun. Tekstiä ei tallenneta tietokantaan. Tarkista lopputuloksen tosiasiat."
+            f"palveluun {AI_PROVIDER_LABEL}. Tekstiä ei tallenneta tietokantaan. Tarkista lopputuloksen tosiasiat."
         ).classes("text-sm text-gray-600")
         question = ui.input("Hakemuksen osion kysymys tai otsikko").classes("w-full")
         draft = ui.textarea("Oma hakemustekstiluonnos").classes("w-full")

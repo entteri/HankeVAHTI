@@ -20,6 +20,34 @@ def hae_detail_url(source_id: str) -> str:
     return HAE_BASE_URL + quote(source_id, safe="")
 
 
+def _rich_text(value: object) -> str | None:
+    """Lue richFi/richSv/richEn-dokumentin tekstisolmut tavallisena tekstinä."""
+    parts: list[str] = []
+
+    def visit(node: object) -> None:
+        if not isinstance(node, dict):
+            return
+        kind = node.get("type")
+        if kind == "text":
+            if isinstance(node.get("text"), str):
+                parts.append(node["text"])
+            return
+        if kind == "hardBreak":
+            parts.append("\n")
+            return
+        children = node.get("content")
+        if isinstance(children, list):
+            for child in children:
+                visit(child)
+        if kind in ("paragraph", "heading", "listItem", "blockquote", "codeBlock", "tableRow"):
+            parts.append("\n")
+        elif kind in ("tableCell", "tableHeader"):
+            parts.append("\t")
+
+    visit(value)
+    return "\n".join(line.strip() for line in "".join(parts).splitlines() if line.strip()) or None
+
+
 def _localized_text(value: dict | str | None) -> str | None:
     if isinstance(value, str):
         return value.strip() or None
@@ -28,6 +56,9 @@ def _localized_text(value: dict | str | None) -> str | None:
             text = value.get(language)
             if isinstance(text, str) and text.strip():
                 return text.strip()
+            rich_text = _rich_text(value.get(f"rich{language.title()}"))
+            if rich_text:
+                return rich_text
     return None
 
 

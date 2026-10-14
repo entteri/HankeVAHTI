@@ -13,6 +13,12 @@ from tests.test_funding_calls import _test_client
 from tests.test_relevance_ui import _click, _page_client
 
 
+@pytest.fixture(autouse=True)
+def openai_provider(monkeypatch):
+    """Säilytä alkuperäisen OpenAI-vaihtoehdon regressiotestit."""
+    monkeypatch.setattr("app.core.config.AI_PROVIDER", "openai")
+
+
 def _selected_call(session):
     call = FundingCall(
         source="EURA",
@@ -145,14 +151,14 @@ def test_summary_button_saves_and_displays_summary_alongside_relevance_and_gemin
         with _test_client(db_session, monkeypatch) as client:
             page = _page_client(client.get("/osallistuttavat"))
             assert not requests
-            client.portal.call(_click, page, "Tekoälyn yhteenveto")
+            client.portal.call(_click, page, "AI-soveltuvuusarvio")
             assert len(requests) == 1
             client.portal.call(_click, page, "Lisätiedot")
             labels = [e.text for e in page.elements.values() if isinstance(e, ui.label)]
             assert labels.count("Tallennettu AI-yhteenveto") == 2
             assert "Oma arvio" in labels
             assert "Relevanssi: 80 / 100" in labels
-            assert any(isinstance(e, ui.button) and e.text == "AI-sparraaja" for e in page.elements.values())
+            assert not any(isinstance(e, ui.button) and e.text == "AI-sparraaja" for e in page.elements.values())
             assert client.get(f"/api/funding-calls/{call.id}").json()["ai_summary"] == "Tallennettu AI-yhteenveto"
             client.portal.call(_click, page, "Arvioimatta")
             saved = client.get(f"/api/funding-calls/{call.id}").json()
@@ -175,8 +181,8 @@ def test_summary_button_prevents_duplicate_requests_and_recovers_after_failure(d
     monkeypatch.setattr("app.ui.funding_calls.generate_ai_summary", slow_failure)
     with _test_client(db_session, monkeypatch) as client:
         page = _page_client(client.get("/osallistuttavat"))
-        button = next(e for e in page.elements.values() if isinstance(e, ui.button) and e.text == "Tekoälyn yhteenveto")
-        pending = client.portal.start_task_soon(_click, page, "Tekoälyn yhteenveto")
+        button = next(e for e in page.elements.values() if isinstance(e, ui.button) and e.text == "AI-soveltuvuusarvio")
+        pending = client.portal.start_task_soon(_click, page, "AI-soveltuvuusarvio")
         try:
             assert started.wait(timeout=2)
             assert not button.enabled
@@ -196,9 +202,9 @@ def test_summary_button_prevents_duplicate_requests_and_recovers_after_failure(d
         finally:
             release.set()
             pending.result(timeout=5)
-        new_button = next(e for e in page.elements.values() if isinstance(e, ui.button) and e.text == "Tekoälyn yhteenveto")
+        new_button = next(e for e in page.elements.values() if isinstance(e, ui.button) and e.text == "AI-soveltuvuusarvio")
         assert new_button.enabled
-        client.portal.call(_click, page, "Tekoälyn yhteenveto")
+        client.portal.call(_click, page, "AI-soveltuvuusarvio")
         assert len(calls) == 2
 
 
@@ -257,7 +263,7 @@ def test_new_call_details_generate_long_summary_without_changing_decision(db_ses
             page = _page_client(client.get("/arvioi"))
             assert not requests
             client.portal.call(_click, page, "Lisätiedot")
-            client.portal.call(_click, page, "Muodosta AI Summary")
+            client.portal.call(_click, page, "Muodosta AI-soveltuvuusarvio")
             assert len(requests) == 1
             assert long_summary.strip() in [e.text for e in page.elements.values() if isinstance(e, ui.label)]
             saved = client.get(f"/api/funding-calls/{call.id}").json()

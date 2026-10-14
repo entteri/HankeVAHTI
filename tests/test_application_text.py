@@ -11,6 +11,12 @@ from tests.test_funding_calls import _test_client
 from tests.test_relevance_ui import _click, _page_client
 
 
+@pytest.fixture(autouse=True)
+def openai_provider(monkeypatch):
+    """Säilytä alkuperäisen OpenAI-vaihtoehdon regressiotestit."""
+    monkeypatch.setattr("app.core.config.AI_PROVIDER", "openai")
+
+
 @pytest.fixture
 def context(db_session, tmp_path, monkeypatch):
     call = _selected_call(db_session)

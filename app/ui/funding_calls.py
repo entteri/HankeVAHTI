@@ -7,13 +7,14 @@ from zoneinfo import ZoneInfo
 
 from nicegui import ui
 
+from app.core.config import AI_PROVIDER_LABEL
+
 from app.db.session import SessionLocal
 from app.evaluators.relevance import relevance_label
 from app.models import EvaluationStatus, ParticipationStage
 from app.services.ai_summary import SummaryError, generate_ai_summary
 from app.services.duplicates import DuplicateMatch, find_duplicate_matches
 from app.services.funding_calls import FundingCallSort, FundingCallView, list_funding_calls, set_funding_call_status
-from app.ui.ai_assistant import ai_assistant_dialog
 from app.ui.application_text import application_text_dialog
 from app.ui.keyword_highlights import highlight_keywords
 
@@ -112,14 +113,14 @@ def _details_dialog(call: FundingCallView, duplicate_matches: list[DuplicateMatc
             if explanation:
                 ui.label(explanation).classes("whitespace-pre-wrap")
         ui.label("Suositus ei muuta osallistumispäätöstä. Pisteytys päivitetään Asetukset-sivulla.").classes("text-sm text-gray-600")
-        ui.label("Tekoälyn yhteenveto").classes("font-semibold")
-        summary_text = ui.label(call.ai_summary or "Yhteenvetoa ei ole vielä muodostettu.").classes("w-full whitespace-pre-wrap break-words")
+        ui.label("AI-soveltuvuusarvio").classes("font-semibold")
+        summary_text = ui.label(call.ai_summary or "Soveltuvuusarviota ei ole vielä muodostettu.").classes("w-full whitespace-pre-wrap break-words")
         ui.label(
-            "Painike lähettää haun tiedot, organisaatioprofiilin ja yhteenveto-ohjeen OpenAI-palveluun. "
+            f"Painike lähettää haun tiedot, organisaatioprofiilin ja arviointiohjeen palveluun {AI_PROVIDER_LABEL}. "
             "Alkuperäistä hakusivua ei lueta. Arvio ei muuta pisteitä tai osallistumispäätöstä."
         ).classes("text-sm text-gray-600")
         ui.button(
-            "Muodosta AI Summary",
+            "Muodosta AI-soveltuvuusarvio",
             on_click=lambda event: create_summary(call.id, event.sender, summary_text),
         ).props("outline")
         ui.separator()
@@ -132,7 +133,6 @@ def _details_dialog(call: FundingCallView, duplicate_matches: list[DuplicateMatc
                 "HAEAVUSTUKSIA": "Avaa haku Haeavustuksia.fi:ssä",
             }.get(call.source, "Avaa lähde")
             ui.link(label, call.source_url, new_tab=True)
-        ui.button("AI-sparraaja", on_click=lambda: ai_assistant_dialog(call).open())
         ui.button("Muotoile hakemustekstiä", on_click=lambda: application_text_dialog(call).open()).props("outline")
         ui.button("Sulje", on_click=dialog.close)
     return dialog
@@ -167,11 +167,11 @@ def _render_page(title: str, initial_status: EvaluationStatus | None = None, ong
         except SummaryError as exc:
             ui.notify(str(exc), type="negative")
         except Exception:
-            ui.notify("Yhteenvedon luonti epäonnistui. Yritä uudelleen.", type="negative")
+            ui.notify("Soveltuvuusarvion luonti epäonnistui. Yritä uudelleen.", type="negative")
         else:
             if summary_text is not None and not summary_text.is_deleted:
                 summary_text.set_text(summary)
-            ui.notify("Tekoälyn yhteenveto tallennettu.", type="positive")
+            ui.notify("AI-soveltuvuusarvio tallennettu.", type="positive")
         finally:
             pending_summaries.discard(call_id)
             if summary_text is None:
@@ -245,10 +245,10 @@ def _render_page(title: str, initial_status: EvaluationStatus | None = None, ong
                     ).classes("text-sm")
                 if initial_status is EvaluationStatus.PARTICIPATE:
                     if call.ai_summary:
-                        ui.label("Tekoälyn yhteenveto").classes("font-semibold")
+                        ui.label("AI-soveltuvuusarvio").classes("font-semibold")
                         ui.label(call.ai_summary).classes("whitespace-pre-wrap")
                     summary_button = ui.button(
-                        "Tekoälyn yhteenveto",
+                        "AI-soveltuvuusarvio",
                         on_click=lambda event, call_id=call.id: create_summary(call_id, event.sender),
                     ).props("outline")
                     if call.id in pending_summaries:
@@ -289,8 +289,8 @@ def _render_page(title: str, initial_status: EvaluationStatus | None = None, ong
         ui.label("Pisteet ovat suosituksia. Päivitä pisteytys Asetukset-sivulla tuonnin tai hakusanojen muuttamisen jälkeen.").classes("text-sm text-gray-600")
         if initial_status is EvaluationStatus.PARTICIPATE:
             ui.label(
-                "Tekoälyn yhteenveto lähettää haun tiedot sekä organisaatioprofiilin ja peruspromptin "
-                "sisällön OpenAI-palveluun. Yhteenveto tallennetaan hankkeelle; pisteet ja päätös säilyvät."
+                "AI-soveltuvuusarvio lähettää haun tiedot sekä organisaatioprofiilin ja peruspromptin "
+                f"sisällön palveluun {AI_PROVIDER_LABEL}. Soveltuvuusarvio tallennetaan hankkeelle; pisteet ja päätös säilyvät."
             ).classes("text-sm text-gray-600")
         with ui.row().classes("w-full gap-3 items-center"):
             ui.input("Hae nimellä tai tunnuksella", on_change=on_search).classes("grow")
