@@ -35,7 +35,48 @@ Haeavustuksia-hankkeen **Lisätiedot**-ikkunassa lähdelinkki avaa kyseisen haun
 
 **Asetukset**-sivulla voi tyhjentää kaikki haetut hankkeet ja aloittaa tuonnin alusta. Painike avaa vahvistusikkunan. Tyhjennys poistaa myös hankkeiden arviot ja osallistumistiedot pysyvästi, mutta säilyttää tallennetut hakuehdot.
 
-**Osallistuttavat**-näkymän hankekortissa **Tekoälyn yhteenveto** muodostaa lyhyen päätelmän hankkeen sopivuudesta asiakkaalle. Ylläpidä projektin juuressa UTF-8-muotoisia tiedostoja `asiakas.md` (asiakkaan profiili ja osaaminen) ja `arviokriteerit.md` (arviointiohjeet). Myös nimeä `arviointikriteerit.md` voi käyttää. Tiedostot luetaan aina painiketta painettaessa. Lisää oma `OPENAI_API_KEY` paikalliseen `.env`-tiedostoon; mallin voi vaihtaa `OPENAI_MODEL`-asetuksella. Yhteenveto tallennetaan hankkeelle ja näkyy kortissa sekä lisätiedoissa. Painike lähettää näiden kahden tiedoston sisällön ja hankkeen tiedot OpenAI APIin. Suorita `python -m alembic upgrade head` päivityksen jälkeen.
+**Lisätiedot → Muodosta AI-soveltuvuusarvio** arvioi rahoitushaun soveltuvuutta Suomen eOppimiskeskus ry:lle jo ennen osallistumispäätöstä. Myös **Osallistuttavat**-näkymän **AI-soveltuvuusarvio** -painike säilyy. Molemmat käyttävät projektin juuressa olevien UTF-8-tiedostojen `organisaatioprofiili.md` ja `ai-summary-prompt.md` koko sisältöä. Tiedostot luetaan jokaisella pyynnöllä projektin sijainnista riippumatta; puuttuva tai tyhjä tiedosto estää pyynnön ja näyttää virheilmoituksen. `asiakas.md` ja `arviointikriteerit.md` säilyvät, mutta niitä ei enää välitetä yhteenvetoon.
+
+Yhteenveto käsittelee sopivuutta, rajoituksia, itsenäistä hakijuutta ja kumppanuutta, mahdollisia rahoituslinjoja, kokonaisarviota, haun tilaa, lisäselvityksiä ja lähdettä. Pyyntö sisältää tallennetun haun tiedot, lähdelinkin ja arviointipäivän Helsingin ajassa. Alkuperäistä hakusivua ei lueta eikä puuttuvia ehtoja täydennetä verkkohakuna. Vastauksen oikeellisuus on tarkistettava alkuperäisestä ilmoituksesta.
+
+AI-soveltuvuusarvio ja hakemustekstin muotoilu käyttävät oletuksena Geminiä (`AI_PROVIDER=gemini`) ja nykyisiä `GEMINI_API_KEY`- ja `GEMINI_MODEL`-asetuksia. OpenAI on edelleen valittavissa asetuksella `AI_PROVIDER=openai`, jolloin käytetään `OPENAI_API_KEY`- ja `OPENAI_MODEL`-asetuksia. Virhetilanteessa palvelua ei vaihdeta automaattisesti. Yhteenveto tallennetaan nykyiseen tietokantakenttään; pisteytys, osallistumispäätös ja osallistumistiedot säilyvät. Uusi onnistunut yhteenveto korvaa vanhan. Epäonnistunut pyyntö säilyttää aiemman yhteenvedon. Lisätiedot-ikkuna näyttää pitkän vastauksen kokonaan vieritettävänä tekstinä. Tämä päivitys ei vaadi uutta tietokantamigraatiota.
+
+Gemini-kokeilua varten täytä paikallisen `.env`-tiedoston `GEMINI_API_KEY` ja `GEMINI_MODEL`. Aseta tarvittaessa `AI_PROVIDER=gemini` ja käynnistä sovellus uudelleen. Mallin nimi tulee omista asetuksistasi; sovellus ei valitse Gemini-mallia automaattisesti. Älä kopioi oikeaa avainta README:hen tai `.env.example`-tiedostoon. Uusia riippuvuuksia tai tietokantamigraatioita ei tarvita.
+
+Paikallinen tarkistus:
+
+1. Käynnistä sovellus projektikansiossa: `.\.venv\Scripts\python.exe main.py`.
+2. Avaa `http://localhost:8080` ja **Arvioi hankkeita → Lisätiedot**. Pelkkä ikkunan avaaminen ei lähetä tekoälypyyntöä.
+3. **Muodosta AI-soveltuvuusarvio** lähettää oikean pyynnön valitulle AI-palvelulle omalla API-avaimellasi. Paina sitä vain, kun haluat käyttää palvelua.
+4. Tarkista vastauksen otsikot, perustelut, haun tila ja lähde. Varmista, että haku pysyy arvioimattomana ja sen pisteet säilyvät.
+5. Sulje ja avaa Lisätiedot uudelleen: tallennetun vastauksen pitäisi näkyä. Tarkista myös nykyinen yhteenvetopainike Osallistuttavat-näkymässä.
+
+Automaattiset testit eivät kutsu oikeaa tekoälypalvelua: `.\.venv\Scripts\python.exe -m pytest tests/test_ai_summary.py -q`.
+
+## Hankehakemustekstin muotoilu
+
+**Lisätiedot → Muotoile hakemustekstiä** avaa yksittäisen hakemusosion muotoilun. Kirjoita osion kysymys tai otsikko, liitä oma luonnos ja anna tarvittaessa rahoittajan arviointikriteerit sekä positiivinen kokonaisluku merkkimäärärajaksi. Tyhjä merkkiraja tarkoittaa, ettei rajaa ole annettu.
+
+**Muotoile teksti** lähettää syötteet ja tallennetun rahoitushaun tiedot valitulle AI-palvelulle (oletuksena Google Gemini). Toiminto lukee jokaisella pyynnöllä `organisaatioprofiili.md`- ja `hakemusteksti-prompt.md`-tiedostojen koko sisällön. Gemini käyttää `GEMINI_API_KEY`- ja `GEMINI_MODEL`-asetuksia. OpenAI-vaihtoehto käyttää `OPENAI_API_KEY`- ja `OPENAI_MODEL`-asetuksia. Alkuperäistä hakusivua ei lueta. Työohjeet ovat erillään käyttäjän luonnoksesta ja rahoitushaun aineistosta. Vastauksen siirtoa varten pyydetään JSON-muoto (Geminillä JSON-skeema): kopioitava teksti ja mahdolliset lisätietokysymykset erikseen. Sovellus näyttää promptin tarkoittamat teksti- ja merkkimääräosiot käyttöliittymässä.
+
+Tuloksesta lasketaan merkit ohjelmassa, välilyönnit, välimerkit ja rivinvaihdot mukaan lukien. Otsikot ja lisätietokysymykset eivät kuulu laskentaan. Ylitys näytetään merkkien määränä, eikä tekstiä katkaista tai lyhennetä automaattisesti. **Kopioi valmis teksti** kopioi vain hakemustekstin. Tarvittaessa voit myös valita tekstin tuloskentästä ja kopioida sen Ctrl+C:llä. Tarkista tosiasiat ja rahoittajan oma merkkilaskenta ennen käyttöä.
+
+Tallennettua AI-soveltuvuusarviota ei välitetä automaattisesti muotoiluun. Tekstiä ei tallenneta tietokantaan. Kopioi tulos talteen ennen ikkunan sulkemista. Epäonnistunut uusi pyyntö säilyttää ikkunassa edellisen tuloksen; tulos kuuluu edelliseen onnistuneeseen pyyntöön. Puuttuvat asiakirjat, avain, virheellinen merkkiraja, verkkovirheet ja käyttökelvottomat vastaukset näytetään virheilmoituksina. AI-ohjeet kieltävät tietojen keksimisen, mutta ohjelma ei voi varmistaa kaikkien vastausten asiasisältöä automaattisesti.
+
+### Käyttöliittymän tarkistus ilman API-avainta
+
+Avaa uusi PowerShell-terminaali projektikansiossa. Voit estää paikallisen `.env`-avaimen käyttämisen tässä käynnistyksessä asettamalla prosessin avainarvoksi yhden välilyönnin (tiedostoa ei muuteta):
+
+```powershell
+$env:AI_PROVIDER = 'gemini'
+$env:GEMINI_API_KEY = ' '
+.\.venv\Scripts\python.exe main.py
+```
+
+Avaa `http://localhost:8080`, valitse rahoitushaun **Lisätiedot → Muotoile hakemustekstiä** ja täytä kysymys sekä luonnos. Paina **Muotoile teksti**: näet ilmoituksen puuttuvasta API-avaimesta, eikä Gemini-pyyntöä tehdä. Merkkirajaksi esimerkiksi `-1` näyttää syötteen tarkistusvirheen. Pelkkä ikkunan avaaminen ei tee kutsua. Ilman avainta ei voi saada aitoa muotoilutulosta; tulos-, ylitys- ja kopiointikäyttäytyminen testataan automaattisesti korvatuilla vastauksilla. Sulje tämä terminaali tarkistuksen jälkeen ja käytä tavalliseen käynnistykseen uutta terminaalia.
+
+Muotoilun automaattiset testit: `.\.venv\Scripts\python.exe -m pytest tests/test_application_text.py -q`. Ne eivät tee oikeita API-kutsuja.
+
 
 REST-rajapinnassa hankkeet löytyvät reiteistä `GET /api/funding-calls`, `GET /api/funding-calls/{id}` ja päätös tallennetaan reitillä `PATCH /api/funding-calls/{id}/status` käyttäen esimerkiksi JSON-runkoa `{"status":"PARTICIPATE"}` tai `{"status":"REJECTED"}`.
 
@@ -70,11 +111,9 @@ Hylkäysajan ja rakenteisten osumien käyttöönotto vaatii migraation **0006_ev
 
 Pisteytys on erillisessä `app/services/relevance.py`-palvelussa. `score_funding_calls(session)` käsittelee kaikki päättymättömät haut; valinnainen `call_ids` rajaa ajon esimerkiksi uusiin tai muuttuneisiin hakuihin. `include_ended=True` ottaa myös päättyneet haut mukaan. Importerien nykyistä toimintaa ei ole muutettu. Pistepainot ja luokkarajat ovat keskitetysti tiedostossa `app/evaluators/relevance.py`.
 
-## Gemini AI -sparraaja (prototyyppi)
+## Gemini-asetukset
 
-Yksittäisen haun **Lisätiedot → AI-sparraaja** avaa dialogin, jossa voit kirjoittaa oman kysymyksen tai käyttää toimintoja **Analysoi rahoitushaku**, **Ehdota hankeideaa**, **Mitä pitää tarkistaa?** ja **Arvioi soveltuvuutta**. Valmis toimintopainike lähettää kysymyksen suoraan; oma kysymys lähetetään **Lähetä**-painikkeella. Pelkkä dialogin avaaminen ei tee Gemini-kutsua
-
-Sparraaja käyttää [Googlen virallista google-genai SDK:ta](https://googleapis.github.io/python-genai/). Asenna riippuvuudet nykyiseen virtuaaliympäristöön:
+Gemini-yhteys käyttää [Googlen virallista google-genai SDK:ta](https://googleapis.github.io/python-genai/). Asenna riippuvuudet nykyiseen virtuaaliympäristöön:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
@@ -96,13 +135,9 @@ Käynnistä sovellus asetusten muuttamisen jälkeen uudelleen:
 .\.venv\Scripts\python.exe main.py
 ```
 
-Avaa `http://localhost:8080`, valitse haku ja avaa **Lisätiedot → AI-sparraaja**. Jos avain tai mallin nimi puuttuu, dialogi näyttää suomenkielisen ohjeen; muu HankeVAHTI toimii normaalisti. Verkkovirhe, aikakatkaisu, käyttöraja, API-virhe ja tyhjä vastaus käsitellään dialogissa. Lähetyspainikkeet ovat pois käytöstä pyynnön ajan. HTTP-pyynnön aikakatkaisuksi on asetettu 60 sekuntia, eikä kutsua toisteta automaattisesti.
+Avaa `http://localhost:8080` ja valitse **Lisätiedot → Muodosta AI-soveltuvuusarvio** tai **Muotoile hakemustekstiä**. Pelkkä Lisätiedot-ikkunan avaaminen ei lähetä AI-pyyntöä. Puuttuva avain tai malli sekä verkkovirheet, aikakatkaisu, käyttöraja, API-virhe ja tyhjä vastaus näytetään suomeksi; muu HankeVAHTI toimii ilman avainta. Gemini-pyynnön aikakatkaisu on 60 sekuntia, eikä kutsua toisteta automaattisesti.
 
-Gemini saa vain käyttäjän kysymyksen sekä haun nimen, kuvauksen, lähteen, rahaston, kategorian, hakuajan, relevanssipisteet ja pisteytyksen perustelun. `raw_data`, osallistumisen muistiinpanot, vastuuhenkilö ja seuraava tehtävä eivät kuulu kontekstiin. Nykyisessä mallissa ei ole erillistä rahoittajakenttää, joten lähdepalvelua ei esitetä varmistettuna rahoittajana. TARKISTA ETTEI BILLING OLE AKTIIVINEN ETTEI KÄY VAHINKO JA MENE MAKSETTUJA TOKENEITA
-
-Ohjeistus pyytää Geminiä toimimaan Suomen eOppimiskeskuksen hankesuunnittelun sparraajana, erottamaan annetut faktat omista ehdotuksista, tunnistamaan puuttuvat tiedot ja jättämään päätökset ihmiselle. Mallin vastaus ei silti ole varmennettu tieto. Vastaukset näytetään tavallisena tekstinä, eikä niiden sisältämiä komentoja tai HTML:ää suoriteta.
-
-Prototyyppi käsittelee jokaisen kysymyksen itsenäisesti: aiempia kysymyksiä ja vastauksia ei välitetä seuraavaan pyyntöön. Uusi lähetys korvaa dialogissa näkyvän vastauksen. HankeVAHTI ei tallenna keskustelua tietokantaan. Dialogin sulkeminen ei peru jo lähetettyä pyyntöä. Sparraaja käyttää listan avaamisen yhteydessä luettuja hakutietoja eikä nouda lähdesivuja tai muuta pisteitä, päätöksiä tai muita tietokantatietoja. **ILMAISESSA EI HIRVEÄSTI VAIHTOEHTOJA**
+Soveltuvuusarvio tallentuu hankkeelle. Muotoiltu hakemusteksti on kopioitava erikseen talteen. Mallin vastaus on tarkistettava alkuperäisestä hakuilmoituksesta. Vastaukset näytetään tavallisena tekstinä, eikä niiden sisältämää HTML:ää suoriteta.
 
 ## Testit
 
@@ -127,6 +162,6 @@ Gemini-testit käyttävät mockattua SDK-clientiä ja väliaikaista tietokantaa.
 ## Nykyinen rajaus
 
 - Toteutuskunnan rajaus, yleisten hakuprofiilien hallinta ja osallistumisen vaiheiden laajempi muokkaus ei mahdollista tässä
-- Nykyisessä MVP-versiossa ovat käytettävissä hakusanat ja poissulkusanat, sääntöpohjainen relevanssipisteytys, pisteisiin ja deadlineen perustuva lajittelu sekä Gemini AI -sparraajan prototyyppi
+- Nykyisessä MVP-versiossa ovat käytettävissä hakusanat ja poissulkusanat, sääntöpohjainen relevanssipisteytys, pisteisiin ja deadlineen perustuva lajittelu sekä AI-soveltuvuusarvio ja hakemustekstin muotoilu
 - Relevanssipisteytys käynnistetään tällä hetkellä käsin eikä analyysihistoriaa tallenneta. Käytössä on yksi yhteinen hakusanaprofiili johon AI ei tee mitään
-- Gemini AI -sparraaja vaatii käyttäjän oman Gemini API -avaimen paikalliseen `.env`-tiedostoon. **API-AVAINTA EI TALLENNETA VERSIONHALLINTAAN**
+- Geminin käyttö vaatii käyttäjän oman Gemini API -avaimen paikalliseen `.env`-tiedostoon. **API-AVAINTA EI TALLENNETA VERSIONHALLINTAAN**
