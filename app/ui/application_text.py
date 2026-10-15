@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def application_text_dialog(call: FundingCallView):
-    with ui.dialog() as dialog, ui.card().classes("w-full max-w-3xl p-5 gap-4 max-h-[90vh] overflow-y-auto"):
+    with ui.dialog() as dialog, ui.card().classes("w-full max-w-3xl p-5 gap-4 max-h-[90vh] overflow-y-auto hv-dialog-wide"):
         ui.label("Muotoile hakemustekstiä").classes("text-xl font-bold")
         ui.label(call.title).classes("text-lg")
         ui.label(

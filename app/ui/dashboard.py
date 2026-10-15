@@ -7,6 +7,7 @@ from app.db.session import SessionLocal
 from app.services.duplicates import find_duplicate_matches
 from app.services.funding_calls import dashboard_counts
 from app.services.imports import run_imports
+from app.ui.theme import DASHBOARD_NAVIGATION, page_layout
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +56,11 @@ def dashboard_stats() -> None:
         ("Hylättyjä hankkeita", counts["rejected"], "/hylatyt"),
         ("Käynnissä olevia hankkeita", counts["ongoing"], "/kaynnissa"),
     )
-    with ui.grid(columns=2).classes("w-full gap-4"):
+    with ui.grid(columns=2).classes("w-full gap-4 hv-stats"):
         for title, count, path in cards:
-            with ui.card().classes("w-full"):
+            tone = {"/hankkeet": "info", "/duplikaatit": "warning", "/arvioi": "info",
+                    "/osallistuttavat": "positive", "/hylatyt": "negative", "/kaynnissa": "positive"}[path]
+            with ui.card().classes(f"w-full hv-stat-card hv-tone-{tone}"):
                 ui.label(title).classes("text-lg font-medium")
                 ui.label(str(count)).classes("text-2xl")
                 if title == "Uusia hankkeita":
@@ -67,15 +70,10 @@ def dashboard_stats() -> None:
 
 @ui.page("/")
 def dashboard() -> None:
-    with ui.column().classes("w-full max-w-5xl mx-auto p-6 gap-6"):
+    with page_layout(DASHBOARD_NAVIGATION):
         ui.label("HankeVAHTI").classes("text-3xl font-bold")
         with ui.row().classes("gap-3 flex-wrap"):
             ui.button("Hae uudet hankkeet", on_click=_on_import_click)
-            ui.button("Kaikki hankkeet", on_click=lambda: ui.navigate.to("/hankkeet"))
-            ui.button("Mahdolliset duplikaatit", on_click=lambda: ui.navigate.to("/duplikaatit"))
-            ui.button("Arvioi hankkeita", on_click=lambda: ui.navigate.to("/arvioi"))
-            ui.button("Hakuehdot", on_click=lambda: ui.navigate.to("/hakuehdot"))
-            ui.button("Asetukset", on_click=lambda: ui.navigate.to("/asetukset"))
         ui.label(
             "Hakuehdot rajaavat vain EURA-hakuja. Haeavustuksia-palvelusta tuodaan kaikki avoimet haut."
         ).classes("text-sm text-gray-600")

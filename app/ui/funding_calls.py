@@ -17,6 +17,7 @@ from app.services.duplicates import DuplicateMatch, find_duplicate_matches
 from app.services.funding_calls import FundingCallSort, FundingCallView, list_funding_calls, set_funding_call_status
 from app.ui.application_text import application_text_dialog
 from app.ui.keyword_highlights import highlight_keywords
+from app.ui.theme import FUNDING_NAVIGATION, RELEVANCE_TONES, STATUS_TONES, page_layout
 
 SORT_LABELS = {
     FundingCallSort.DEFAULT.value: "Oletusjärjestys",
@@ -141,6 +142,34 @@ def _details_dialog(call: FundingCallView, duplicate_matches: list[DuplicateMatc
 def _render_page(title: str, initial_status: EvaluationStatus | None = None, ongoing_only: bool = False) -> None:
     state = {"search": "", "status": initial_status, "page": 1, "sort": FundingCallSort.DEFAULT}
     pending_summaries: set[int] = set()
+    pending_decision: tuple[int, EvaluationStatus] | None = None
+
+    def request_status(call: FundingCallView, status: EvaluationStatus) -> None:
+        nonlocal pending_decision
+        pending_decision = (call.id, status)
+        confirmation_name.set_text(call.title)
+        confirmation_change.set_text(f"Tila: {STATUS_LABELS[call.status]} → {STATUS_LABELS[status]}")
+        color = {EvaluationStatus.PARTICIPATE: "positive", EvaluationStatus.REJECTED: "negative"}.get(status, "primary")
+        confirm_button.props(f"color={color}")
+        confirmation.open()
+
+    def clear_decision() -> None:
+        nonlocal pending_decision
+        pending_decision = None
+        confirmation_name.set_text("")
+        confirmation_change.set_text("")
+
+    def cancel_decision() -> None:
+        clear_decision()
+        confirmation.close()
+
+    def confirm_decision() -> None:
+        decision = pending_decision
+        if decision is None or not confirmation.value:
+            return
+        # Consume the pending choice before saving, so a double click cannot repeat it.
+        cancel_decision()
+        choose_status(*decision)
 
     def choose_status(call_id: int, status: EvaluationStatus) -> None:
         with SessionLocal() as session:
@@ -217,82 +246,83 @@ def _render_page(title: str, initial_status: EvaluationStatus | None = None, ong
         ui.label(f"Hankkeita: {total}").classes("text-sm text-gray-600")
         if not calls:
             ui.label("Hankkeita ei löytynyt näillä ehdoilla.").classes("text-gray-600")
-        for call in calls:
-            call_matches = matches_by_id.get(call.id, [])
-            dialog = _details_dialog(call, call_matches, create_summary)
-            dialog.on("hide", lambda: render_rows.refresh())
-            with ui.card().classes("w-full p-4"):
-                with ui.row().classes("w-full items-start justify-between gap-4"):
-                    ui.label(call.title).classes("text-lg font-semibold")
-                    if call_matches:
-                        ui.badge("Mahdollinen duplikaatti").props("color=orange")
-                    ui.badge(STATUS_LABELS[call.status])
-                ui.label(
-                    f"{call.call_identifier or call.source_id} · {call.source} · "
-                    f"Haku päättyy {_date(call.application_end_date)}"
-                ).classes("text-sm text-gray-600")
-                if call.status is EvaluationStatus.REJECTED:
-                    ui.label(f"Hylätty: {_rejected_at(call.rejected_at)}").classes("text-sm")
-                ui.label(
-                    f"Relevanssi: {call.suitability_score} / 100 · {relevance_label(call.suitability_score)}"
-                    if call.suitability_score is not None else "Relevanssi: Ei vielä pisteytetty"
-                ).classes("text-sm font-medium")
-                if call.participation_stage is not None and call.status is EvaluationStatus.PARTICIPATE:
+        with ui.column().classes("hv-call-list"):
+            for call in calls:
+                call_matches = matches_by_id.get(call.id, [])
+                dialog = _details_dialog(call, call_matches, create_summary)
+                dialog.on("hide", lambda: render_rows.refresh())
+                with ui.card().classes("w-full hv-call-row"):
+                    with ui.row().classes("w-full hv-call-heading"):
+                        ui.label(call.title).classes("text-lg font-semibold")
+                        if call_matches:
+                            ui.badge("Mahdollinen duplikaatti").props("color=orange")
+                        ui.badge(STATUS_LABELS[call.status]).classes(f"hv-tone-{STATUS_TONES[call.status.value]}")
                     ui.label(
-                        f"Vaihe: {STAGE_LABELS[call.participation_stage]} · "
-                        f"Vastuuhenkilö: {call.responsible_person or 'Ei määritetty'} · "
-                        f"Seuraava tehtävä: {call.next_action or 'Ei määritetty'}"
-                    ).classes("text-sm")
-                if initial_status is EvaluationStatus.PARTICIPATE:
-                    if call.ai_summary:
-                        ui.label("AI-soveltuvuusarvio").classes("font-semibold")
-                        ui.label(call.ai_summary).classes("whitespace-pre-wrap")
-                    summary_button = ui.button(
-                        "AI-soveltuvuusarvio",
-                        on_click=lambda event, call_id=call.id: create_summary(call_id, event.sender),
-                    ).props("outline")
-                    if call.id in pending_summaries:
-                        summary_button.disable()
-                with ui.row().classes("gap-2 flex-wrap"):
-                    ui.button("Lisätiedot", on_click=dialog.open).props("outline")
-                    if call.status is not EvaluationStatus.NEW:
-                        ui.button(
-                            "Arvioimatta",
-                            on_click=lambda _, call_id=call.id: choose_status(call_id, EvaluationStatus.NEW),
-                        )
-                    if call.status is not EvaluationStatus.PARTICIPATE:
-                        ui.button(
-                            "Osallistu",
-                            on_click=lambda _, call_id=call.id: choose_status(call_id, EvaluationStatus.PARTICIPATE),
-                        ).props("color=positive")
-                    if call.status is not EvaluationStatus.REJECTED:
-                        ui.button(
-                            "Hylkää",
-                            on_click=lambda _, call_id=call.id: choose_status(call_id, EvaluationStatus.REJECTED),
-                        ).props("color=negative")
+                        f"{call.call_identifier or call.source_id} · {call.source} · "
+                        f"Haku päättyy {_date(call.application_end_date)}"
+                    ).classes("text-sm text-gray-600 hv-call-meta")
+                    if call.status is EvaluationStatus.REJECTED:
+                        ui.label(f"Hylätty: {_rejected_at(call.rejected_at)}").classes("text-sm")
+                    ui.label(
+                        f"Relevanssi: {call.suitability_score} / 100 · {relevance_label(call.suitability_score)}"
+                        if call.suitability_score is not None else "Relevanssi: Ei vielä pisteytetty"
+                    ).classes(f"text-sm font-medium hv-call-score hv-tone-{RELEVANCE_TONES.get(relevance_label(call.suitability_score), 'neutral')}")
+                    if call.participation_stage is not None and call.status is EvaluationStatus.PARTICIPATE:
+                        ui.label(
+                            f"Vaihe: {STAGE_LABELS[call.participation_stage]} · "
+                            f"Vastuuhenkilö: {call.responsible_person or 'Ei määritetty'} · "
+                            f"Seuraava tehtävä: {call.next_action or 'Ei määritetty'}"
+                        ).classes("text-sm")
+                    if initial_status is EvaluationStatus.PARTICIPATE:
+                        if call.ai_summary:
+                            ui.label("AI-soveltuvuusarvio").classes("font-semibold hv-saved-summary")
+                            ui.label(call.ai_summary).classes("whitespace-pre-wrap hv-saved-summary")
+                        summary_button = ui.button(
+                            "AI-soveltuvuusarvio",
+                            on_click=lambda event, call_id=call.id: create_summary(call_id, event.sender),
+                        ).props("outline").classes("hv-summary-action")
+                        if call.id in pending_summaries:
+                            summary_button.disable()
+                    with ui.row().classes("gap-2 flex-wrap hv-call-actions"):
+                        ui.button("Lisätiedot", on_click=dialog.open).props("outline")
+                        if call.status is not EvaluationStatus.NEW:
+                            ui.button(
+                                "Arvioimatta",
+                                on_click=lambda _, selected=call: request_status(selected, EvaluationStatus.NEW),
+                            )
+                        if call.status is not EvaluationStatus.PARTICIPATE:
+                            ui.button(
+                                "Osallistu",
+                                on_click=lambda _, selected=call: request_status(selected, EvaluationStatus.PARTICIPATE),
+                            ).props("color=positive")
+                        if call.status is not EvaluationStatus.REJECTED:
+                            ui.button(
+                                "Hylkää",
+                                on_click=lambda _, selected=call: request_status(selected, EvaluationStatus.REJECTED),
+                            ).props("color=negative")
         pages = ceil(total / 20)
         if pages > 1:
             ui.pagination(1, pages, value=state["page"], direction_links=True, on_change=on_page)
 
-    with ui.column().classes("w-full max-w-5xl mx-auto p-6 gap-5"):
+    with page_layout(FUNDING_NAVIGATION):
+        with ui.dialog() as confirmation, ui.card().classes("hv-dialog-confirm"):
+            ui.label("Vahvista tilan muutos").classes("text-lg font-semibold")
+            confirmation_name = ui.label("").classes("font-medium")
+            confirmation_change = ui.label("")
+            with ui.row().classes("justify-end w-full gap-2"):
+                ui.button("Peruuta", on_click=cancel_decision).props("flat autofocus")
+                confirm_button = ui.button("Vahvista", on_click=confirm_decision)
+        confirmation.on("hide", clear_decision)
         with ui.row().classes("w-full items-center justify-between gap-4"):
             ui.label(title).classes("text-3xl font-bold")
             ui.button("Etusivulle", on_click=lambda: ui.navigate.to("/")).props("outline")
-        with ui.row().classes("gap-2 flex-wrap"):
-            ui.button("Kaikki hankkeet", on_click=lambda: ui.navigate.to("/hankkeet")).props("flat")
-            ui.button("Mahdolliset duplikaatit", on_click=lambda: ui.navigate.to("/duplikaatit")).props("flat")
-            ui.button("Arvioi hankkeita", on_click=lambda: ui.navigate.to("/arvioi")).props("flat")
-            ui.button("Osallistuttavat", on_click=lambda: ui.navigate.to("/osallistuttavat")).props("flat")
-            ui.button("Hylätyt", on_click=lambda: ui.navigate.to("/hylatyt")).props("flat")
-            ui.button("Käynnissä olevat", on_click=lambda: ui.navigate.to("/kaynnissa")).props("flat")
-            ui.button("Relevanssin asetukset", on_click=lambda: ui.navigate.to("/asetukset")).props("flat")
         ui.label("Pisteet ovat suosituksia. Päivitä pisteytys Asetukset-sivulla tuonnin tai hakusanojen muuttamisen jälkeen.").classes("text-sm text-gray-600")
         if initial_status is EvaluationStatus.PARTICIPATE:
             ui.label(
                 "AI-soveltuvuusarvio lähettää haun tiedot sekä organisaatioprofiilin ja peruspromptin "
                 f"sisällön palveluun {AI_PROVIDER_LABEL}. Soveltuvuusarvio tallennetaan hankkeelle; pisteet ja päätös säilyvät."
             ).classes("text-sm text-gray-600")
-        with ui.row().classes("w-full gap-3 items-center"):
+        with ui.row().classes("w-full gap-3 items-center hv-filters"):
             ui.input("Hae nimellä tai tunnuksella", on_change=on_search).classes("grow")
             if initial_status is None and not ongoing_only:
                 options = {"ALL": "Kaikki tilat"}
@@ -333,14 +363,13 @@ def ongoing_funding_calls() -> None:
 def possible_duplicates() -> None:
     with SessionLocal() as session:
         matches = find_duplicate_matches(session)
-    with ui.column().classes("w-full max-w-5xl mx-auto p-6 gap-5"):
+    with page_layout():
         ui.label("Mahdolliset duplikaatit").classes("text-3xl font-bold")
         ui.label(
             "EURA:n ja Haeavustuksia.fi:n haut voivat tarkoittaa samaa hakua. "
             "Vertaa alkuperäisiä ilmoituksia ennen päätöstä; tietoja ei yhdistetä tai poisteta."
         ).classes("text-sm text-gray-600")
         ui.label(f"Mahdollisia pareja: {len(matches)}").classes("font-medium")
-        ui.button("Etusivulle", on_click=lambda: ui.navigate.to("/")).props("outline")
         if not matches:
             ui.label("Mahdollisia duplikaatteja ei löytynyt.")
         for match in matches:

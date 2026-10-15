@@ -15,6 +15,7 @@ from app.services.haeavustuksia_criteria import (
     get_haeavustuksia_criteria,
     save_haeavustuksia_criteria,
 )
+from app.ui.theme import page_layout
 
 logger = logging.getLogger(__name__)
 
@@ -167,9 +168,8 @@ def _hae_section() -> None:
 
 @ui.page("/hakuehdot")
 def search_criteria_page() -> None:
-    with ui.column().classes("w-full max-w-3xl mx-auto p-6 gap-5"):
+    with page_layout(form=True):
         with ui.row().classes("w-full items-center justify-between"):
             ui.label("Hakuehdot").classes("text-3xl font-bold")
-            ui.button("Etusivulle", on_click=lambda: ui.navigate.to("/")).props("outline")
         _eura_section()
         _hae_section()

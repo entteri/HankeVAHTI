@@ -10,6 +10,7 @@ from app.evaluators.relevance import EXCLUSION_PENALTY, KEYWORD_POINTS, RELEVANC
 from app.services.relevance import score_funding_calls
 from app.services.search_profiles import get_keyword_settings, save_keyword_settings
 from app.services.settings import delete_all_funding_calls, funding_call_count
+from app.ui.theme import page_layout
 
 logger = logging.getLogger(__name__)
 
@@ -102,10 +103,9 @@ def settings_page() -> None:
     with SessionLocal() as session:
         count = funding_call_count(session)
 
-    with ui.column().classes("w-full max-w-3xl mx-auto p-6 gap-5"):
+    with page_layout(form=True):
         with ui.row().classes("w-full items-center justify-between"):
             ui.label("Asetukset").classes("text-3xl font-bold")
-            ui.button("Etusivulle", on_click=lambda: ui.navigate.to("/")).props("outline")
 
         _relevance_settings()
 
@@ -130,7 +130,7 @@ def settings_page() -> None:
                 delete_button.disable()
                 ui.notify(f"Poistettiin {deleted} hanketta. Voit hakea hankkeet uudelleen.", type="positive")
 
-            with ui.dialog() as dialog, ui.card():
+            with ui.dialog() as dialog, ui.card().classes("hv-dialog-confirm"):
                 ui.label("Poistetaanko kaikki haetut hankkeet?").classes("text-lg font-semibold")
                 ui.label(
                     "Myös arviot ja osallistumistiedot poistetaan pysyvästi. "

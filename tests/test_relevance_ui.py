@@ -167,6 +167,7 @@ def test_reset_decision_returns_call_to_review_and_preserves_details(db_session,
         assert client.get("/api/funding-calls?status=NEW").json()["total"] == 0
         page = _page_client(client.get(path))
         client.portal.call(_click, page, "Arvioimatta")
+        client.portal.call(_click, page, "Vahvista")
         labels = [e.text for e in page.elements.values() if isinstance(e, ui.label)]
         assert "Hankkeita: 0" in labels
         assert call.title not in labels

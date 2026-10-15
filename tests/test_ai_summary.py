@@ -161,6 +161,7 @@ def test_summary_button_saves_and_displays_summary_alongside_relevance_and_gemin
             assert not any(isinstance(e, ui.button) and e.text == "AI-sparraaja" for e in page.elements.values())
             assert client.get(f"/api/funding-calls/{call.id}").json()["ai_summary"] == "Tallennettu AI-yhteenveto"
             client.portal.call(_click, page, "Arvioimatta")
+            client.portal.call(_click, page, "Vahvista")
             saved = client.get(f"/api/funding-calls/{call.id}").json()
             assert saved["status"] == "NEW"
             assert saved["ai_summary"] == "Tallennettu AI-yhteenveto"

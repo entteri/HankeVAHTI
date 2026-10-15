@@ -1,0 +1,157 @@
+/* Shared HankeVAHTI theme. Colors convey existing states, never new decisions. */
+:root {
+    --hv-background: #f7f9f6;
+    --hv-ink: #172b46;
+    --hv-muted: #61728a;
+    --hv-border: #dfe6ee;
+    --hv-blue: #edf3fc;
+    --hv-green: #eaf5ef;
+    --hv-amber: #fff6d9;
+    --hv-red: #fcf0f0;
+    --hv-radius: 12px;
+}
+body {
+    background: var(--hv-background);
+    color: var(--hv-ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 14px;
+    line-height: 1.55;
+}
+.nicegui-content { padding: 0; gap: 0; }
+.hv-header {
+    background: #fff;
+    color: var(--hv-ink);
+    padding: 0 32px;
+    border-bottom: 1px solid var(--hv-border);
+}
+.hv-header-inner {
+    width: 100%;
+    max-width: 1376px;
+    min-height: 60px;
+    margin: 0 auto;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 28px;
+}
+.hv-brand { flex: 0 0 auto; align-items: center; gap: 10px; font-weight: 650; font-size: 16px; }
+.hv-brand-mark { width: 28px; height: 28px; background: #193a63; color: #fff; border-radius: 8px; font-size: 18px; }
+.hv-navigation { display: flex; align-items: center; gap: 4px; min-width: 0; overflow-x: auto; padding: 8px 2px; }
+.hv-navigation .q-btn { flex-shrink: 0; padding: 5px 12px; font-size: 13px; }
+.hv-page {
+    width: calc(100% - 64px);
+    max-width: 1376px;
+    margin: 0 auto;
+    padding: 36px 0 48px;
+    gap: 24px;
+    min-width: 0;
+}
+.hv-page-form { max-width: 960px; }
+.hv-page .text-3xl { font-size: 28px; line-height: 1.25; font-weight: 650; letter-spacing: -.65px; }
+.hv-page .text-xl, .q-dialog .text-xl { font-size: 20px; line-height: 1.35; font-weight: 600; }
+.hv-page .text-lg, .q-dialog .text-lg { font-size: 16px; line-height: 1.5; }
+.hv-page .text-gray-600, .q-dialog .text-gray-600 { color: var(--hv-muted); }
+.hv-page a, .q-dialog a { color: #315f91; text-underline-offset: 3px; overflow-wrap: anywhere; }
+.q-card {
+    background: #fff;
+    border: 1px solid var(--hv-border);
+    border-radius: var(--hv-radius);
+    box-shadow: none;
+    padding: 24px;
+    min-width: 0;
+}
+.q-btn { border-radius: 8px; min-height: 34px; font-size: 13px; font-weight: 500; letter-spacing: 0; padding: 6px 14px; }
+.q-btn:before { box-shadow: none; }
+.q-btn--outline { background: #f4f7fd; }
+.q-btn--outline:before { border: 1px solid #c6d6ee; }
+.q-btn--flat:hover { background: #edf2f8; }
+.q-btn:focus-visible, a:focus-visible { outline: 2px solid #315f91; outline-offset: 3px; }
+.q-field { min-width: 0; font-size: 14px; }
+.q-field--outlined .q-field__control { background: #fff; border-radius: 8px; }
+.q-field--outlined .q-field__control:before { border-color: #cdd7e4; }
+.q-field__native, .q-field__input { color: var(--hv-ink); }
+.q-field__label { color: var(--hv-muted); }
+.q-field--focused .q-field__control { box-shadow: 0 0 0 3px #193a6310; }
+.q-field--outlined .q-field__control:after { border-width: 1px; }
+.q-field--readonly .q-field__control { background: #f7f9fc; }
+.q-checkbox__label { color: var(--hv-ink); }
+.q-menu { border: 1px solid var(--hv-border); border-radius: 10px; box-shadow: 0 8px 24px #172b4614; max-width: calc(100vw - 24px); }
+.q-item.q-manual-focusable--focused { background: var(--hv-blue); }
+.q-badge { font-size: 12px; line-height: 1.4; font-weight: 500; border: 1px solid #c8d8ef; border-radius: 999px; padding: 3px 9px; white-space: normal; overflow-wrap: anywhere; }
+.hv-stats { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 16px; }
+.hv-stat-card { padding: 20px; gap: 8px; position: relative; }
+.hv-stat-card .text-lg { font-size: 14px; }
+.hv-stat-card .text-2xl { font-size: 30px; line-height: 1.2; font-weight: 600; font-variant-numeric: tabular-nums; }
+.hv-stat-card .q-btn { align-self: flex-start; margin-left: -12px; margin-top: auto; }
+.hv-filters { flex-wrap: wrap; padding: 20px; border: 1px solid var(--hv-border); border-radius: var(--hv-radius); background: #fff; gap: 16px; }
+.hv-filters > .q-field:first-child { flex: 1 1 300px; }
+.hv-filters > .q-field { flex-shrink: 1; }
+.hv-call-list { width: 100%; gap: 0; border: 1px solid var(--hv-border); border-radius: var(--hv-radius); background: #fff; overflow: hidden; }
+.hv-call-list:empty { display: none; }
+.hv-call-row.q-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 28px;
+    border: 0;
+    border-bottom: 1px solid var(--hv-border);
+    border-radius: 0;
+    padding: 20px 24px;
+    transition: background-color .12s ease;
+}
+.hv-call-row:last-child { border-bottom: 0; }
+.hv-call-row:hover { background: #fbfcfe; }
+.hv-call-row > * { min-width: 0; grid-column: 1; }
+.hv-call-heading { justify-content: flex-start; align-items: center; gap: 8px 12px; }
+.hv-call-heading > .text-lg { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.hv-call-meta { font-size: 13px; overflow-wrap: anywhere; }
+.hv-call-score { justify-self: start; font-size: 12px; font-weight: 500; border: 1px solid var(--hv-border); border-radius: 5px; padding: 3px 8px; }
+.hv-call-actions { grid-column: 2; grid-row: 1 / span 3; align-self: center; justify-content: flex-end; align-items: center; gap: 8px; }
+.hv-call-row .hv-saved-summary { grid-column: 1 / -1; overflow-wrap: anywhere; }
+.hv-call-row .hv-summary-action { justify-self: start; }
+.q-dialog__backdrop { background: #172b4660; }
+.q-dialog__inner { padding: 24px; }
+.q-dialog__inner > .q-card { width: 720px; border-radius: 16px; padding: 28px; max-width: calc(100vw - 48px); max-height: calc(100dvh - 48px); overflow-y: auto; box-shadow: 0 20px 60px #172b4626; gap: 16px; }
+.q-dialog .q-card > * { max-width: 100%; overflow-wrap: anywhere; }
+.q-dialog .q-separator { margin: 4px 0; background: var(--hv-border); }
+.q-dialog .whitespace-pre-wrap { line-height: 1.7; }
+.q-dialog .q-card > .font-semibold, .q-dialog .q-card > .font-medium { margin-top: 8px; }
+.q-pagination { align-self: center; padding: 12px 0; }
+.q-pagination .q-btn { border-radius: 8px; }
+@media (max-width: 1000px) {
+    .hv-header-inner { gap: 16px; }
+    .hv-call-row.q-card { grid-template-columns: minmax(0, 1fr); }
+    .hv-call-actions { grid-column: 1; grid-row: auto; justify-content: flex-start; }
+    .hv-stats { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 600px) {
+    .hv-header { padding: 0 16px; }
+    .hv-header-inner { flex-wrap: wrap; gap: 0; padding-top: 14px; }
+    .hv-navigation { width: 100%; padding: 10px 2px; }
+    .hv-page { width: calc(100% - 32px); padding-top: 24px; gap: 20px; }
+    .hv-page .text-3xl { font-size: 26px; }
+    .hv-stats { grid-template-columns: minmax(0, 1fr) !important; }
+    .hv-filters { padding: 16px; }
+    .hv-filters > .q-field { width: 100%; flex: 1 1 100%; }
+    .hv-call-row.q-card { padding: 18px 16px; }
+    .q-card { padding: 20px; }
+    .q-dialog__inner { padding: 12px; }
+    .q-dialog__inner > .q-card { padding: 20px; max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .hv-call-row.q-card { transition: none; }
+}
+
+/* Override Quasar color utilities without inline styles on each element. */
+@layer overrides {
+    .hv-navigation .q-btn { color: var(--hv-muted) !important; }
+    .hv-navigation .hv-nav-active { background: var(--hv-blue) !important; color: #193a63 !important; }
+    .q-btn.bg-positive { background: var(--hv-green) !important; color: #23664e !important; border: 1px solid #badfcd; }
+    .q-btn.bg-negative { background: var(--hv-red) !important; color: #9b3540 !important; border: 1px solid #edc3c8; }
+    .q-badge.bg-primary, .q-badge.hv-tone-info, .hv-tone-info { background: var(--hv-blue) !important; color: #315f91 !important; border-color: #c8d8ef !important; }
+    .q-badge.bg-orange, .q-badge.hv-tone-warning, .hv-tone-warning { background: var(--hv-amber) !important; color: #855817 !important; border-color: #ead595 !important; }
+    .q-badge.hv-tone-positive, .hv-tone-positive { background: var(--hv-green) !important; color: #23664e !important; border-color: #badfcd !important; }
+    .q-badge.hv-tone-negative, .hv-tone-negative, .q-badge.bg-red-1 { background: var(--hv-red) !important; color: #9b3540 !important; border-color: #edc3c8 !important; }
+    .q-badge.hv-tone-neutral, .hv-tone-neutral { background: #f3f5f8 !important; color: #59697e !important; border-color: var(--hv-border) !important; }
+}
+
+.q-dialog__inner > .hv-dialog-wide { width: 800px; }
+.q-dialog__inner > .hv-dialog-confirm { width: 480px; }

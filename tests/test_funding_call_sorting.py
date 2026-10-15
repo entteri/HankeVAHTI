@@ -129,8 +129,10 @@ def test_ui_sorts_filtered_results_and_keeps_sort_after_decisions(db_session, mo
         client.portal.call(_change, page, ui.select, "Lajittelu", "relevance_desc")
         assert _titles(page) == ["Testihaku korkea", "Testihaku matala"]
         client.portal.call(_click, page, "Osallistu")
+        client.portal.call(_click, page, "Vahvista")
         assert _titles(page) == ["Testihaku matala"]
         client.portal.call(_click, page, "Hylkää")
+        client.portal.call(_click, page, "Vahvista")
         assert _titles(page) == []
         client.portal.call(_change, page, ui.select, "Tila", "ALL")
         assert _titles(page) == ["Testihaku korkea", "Testihaku matala"]
@@ -239,4 +241,5 @@ def test_new_sorts_through_api_and_ui(db_session, monkeypatch, sort, expected):
         client.portal.call(_change, page, ui.select, "Lajittelu", sort)
         assert _titles(page) == expected
         client.portal.call(_click, page, "Arvioimatta")
+        client.portal.call(_click, page, "Vahvista")
         assert _titles(page) == expected[1:]
