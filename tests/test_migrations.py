@@ -80,7 +80,7 @@ def test_decision_and_match_migration_upgrade_downgrade_preserve_legacy_data(tmp
             current_columns = {row[1]: row for row in connection.execute("PRAGMA table_info(evaluations)")}
             new_columns = {"rejected_at", "matched_keywords", "matched_excluded_keywords"}
             if direction == "upgrade":
-                assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0006_evaluation_decisions_matches"
+                assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0007_multiple_search_criteria"
                 assert connection.execute("SELECT rejected_at, matched_keywords, matched_excluded_keywords FROM evaluations").fetchone() == (None, None, None)
                 assert all(current_columns[name][3] == 0 for name in new_columns)
                 # Downgrade poistaa vain uudet tiedot; vanhat sarakkeet säilyvät.
@@ -89,3 +89,29 @@ def test_decision_and_match_migration_upgrade_downgrade_preserve_legacy_data(tmp
                 assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0005_ai_summary"
                 assert not new_columns.intersection(current_columns)
             assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
+
+
+def test_multiple_criteria_migration_preserves_existing_selections(tmp_path):
+    database = tmp_path / "criteria.db"
+    env = {**os.environ, "DATABASE_URL": f"sqlite:///{database.as_posix()}"}
+    root = Path(__file__).resolve().parents[1]
+
+    def migrate(direction, revision):
+        subprocess.run([sys.executable, "-m", "alembic", direction, revision],
+                       cwd=root, env=env, check=True, capture_output=True, text=True)
+
+    migrate("upgrade", "0006_evaluation_decisions_matches")
+    with sqlite3.connect(database) as connection:
+        connection.execute("INSERT INTO eura_search_criteria (id, fund, area, authority, regions, call_identifier) "
+                           "VALUES (1, 'ESR+', 'ETELA_SUOMI', '2601', '[\"01\"]', 'PSUEVK-112')")
+        connection.execute("INSERT INTO haeavustuksia_search_criteria "
+                           "(id, grant_type, show_future, show_ongoing, authority) "
+                           "VALUES (1, 'Hankeavustus', 1, 0, 'OKM')")
+    migrate("upgrade", "head")
+    with sqlite3.connect(database) as connection:
+        assert connection.execute("SELECT funds, areas, authorities, regions, call_identifier "
+                                  "FROM eura_search_criteria").fetchone() == (
+            '["ESR+"]', '["ETELA_SUOMI"]', '["2601"]', '["01"]', 'PSUEVK-112')
+        assert connection.execute("SELECT grant_types, authorities, show_future, show_ongoing "
+                                  "FROM haeavustuksia_search_criteria").fetchone() == (
+            '["Hankeavustus"]', '["OKM"]', 1, 0)

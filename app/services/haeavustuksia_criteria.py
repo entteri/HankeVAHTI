@@ -1,6 +1,6 @@
 """Haeavustuksia.fi:n hakuehtojen tallennus."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from sqlalchemy.orm import Session
 
@@ -17,10 +17,10 @@ GRANT_TYPE_LABELS = {
 
 @dataclass(frozen=True)
 class HaeavustuksiaCriteria:
-    grant_type: str | None = None
+    grant_types: list[str] = field(default_factory=list)
     show_future: bool = True
     show_ongoing: bool = True
-    authority: str | None = None
+    authorities: list[str] = field(default_factory=list)
 
 
 def get_haeavustuksia_criteria(session: Session) -> HaeavustuksiaCriteria:
@@ -28,22 +28,22 @@ def get_haeavustuksia_criteria(session: Session) -> HaeavustuksiaCriteria:
     if row is None:
         return HaeavustuksiaCriteria()
     return HaeavustuksiaCriteria(
-        grant_type=row.grant_type,
+        grant_types=list(row.grant_types),
         show_future=row.show_future,
         show_ongoing=row.show_ongoing,
-        authority=row.authority,
+        authorities=list(row.authorities),
     )
 
 
 def save_haeavustuksia_criteria(session: Session, criteria: HaeavustuksiaCriteria) -> None:
-    if criteria.grant_type is not None and criteria.grant_type not in GRANT_TYPE_LABELS:
+    if any(grant_type not in GRANT_TYPE_LABELS for grant_type in criteria.grant_types):
         raise ValueError("Tuntematon avustuslaji")
     row = session.get(HaeavustuksiaSearchCriteria, 1)
     if row is None:
         row = HaeavustuksiaSearchCriteria(id=1)
         session.add(row)
-    row.grant_type = criteria.grant_type
+    row.grant_types = list(dict.fromkeys(criteria.grant_types))
     row.show_future = criteria.show_future
     row.show_ongoing = criteria.show_ongoing
-    row.authority = criteria.authority
+    row.authorities = list(dict.fromkeys(criteria.authorities))
     session.commit()

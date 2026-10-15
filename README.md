@@ -31,6 +31,8 @@ Tuonnin jälkeen pääsivun **Kaikki hankkeet** avaa selattavan ja haettavan lis
 
 **Hakuehdot**-sivulla voi tallentaa EURA-hakuilmoituksille rahaston, haun kohdealueen, viranomaisen, maakunnat ja hakutunnuksen. Valintojen nimet ja koodit haetaan EURA:n koodistosta sivun avaamisen yhteydessä. Oletuksena tuodaan vain avoimet ESR+-haut. Haeavustuksia.fi-hakuilmoituksille voi valita avustuslajin, tulevat ja käynnissä olevat haut sekä valtionapuviranomaisen. Kummallakin lähteellä on oma tallennuspainike ja hakuehdot vaikuttavat seuraaviin tuonteihin; aiemmin tallennettuja hankkeita tai niiden arvioita ei poisteta. Sivulla näytetään voimassa olevat hakuehdot, ja tuonnin ilmoitus kertoo uusien hankkeiden määrän lähteittäin. EURA-hankkeen **Lisätiedot**-ikkunassa oleva linkki avaa yksittäisen hakuilmoituksen UUID-tunnisteella.
 
+Pudotusvalikoista voi valita useita rahastoja, kohdealueita, viranomaisia, maakuntia ja avustuslajeja. Saman kentän valinnat yhdistetään vaihtoehtoina; eri kenttien rajaukset ovat voimassa yhtä aikaa. Tyhjä valinta tarkoittaa kaikkia vaihtoehtoja. Vanhojen yksittäisten valintojen siirto monivalinnoiksi vaatii migraation `0007_multiple_search_criteria`: aja `python -m alembic upgrade head` ennen sovelluksen käynnistystä.
+
 Haeavustuksia-hankkeen **Lisätiedot**-ikkunassa lähdelinkki avaa kyseisen haun osoitteessa `https://www.haeavustuksia.fi/fi/haku/{asianumero}`.
 
 **Asetukset**-sivulla voi tyhjentää kaikki haetut hankkeet ja aloittaa tuonnin alusta. Painike avaa vahvistusikkunan. Tyhjennys poistaa myös hankkeiden arviot ja osallistumistiedot pysyvästi, mutta säilyttää tallennetut hakuehdot.

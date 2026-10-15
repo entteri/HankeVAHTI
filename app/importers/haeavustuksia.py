@@ -115,35 +115,41 @@ def fetch_haeavustuksia_calls(
         raise ValueError("Sivukoon on oltava positiivinen")
     criteria = criteria or HaeavustuksiaCriteria()
 
-    calls = []
-    page = 1
-    while True:
-        response = client.get(
-            API_URL,
-            params={
-                "Pagination.Page": page,
-                "Pagination.PageSize": page_size,
-                "Language": "fi",
-                "SearchTerm": "",
-                "VaOrgLyhenne": criteria.authority or "",
-                "ShowFuture": str(criteria.show_future).lower(),
-                "ShowOngoing": str(criteria.show_ongoing).lower(),
-                "ShowEnded": "false",
-                "HideExternal": "false",
-                **({"Avustuslaji": criteria.grant_type} if criteria.grant_type else {}),
-            },
-        )
-        response.raise_for_status()
-        data = response.json()
-        items = data["hakuilmoitukset"]
-        page_count = data["pageCount"]
-        if not isinstance(items, list) or not isinstance(page_count, int) or page_count < 0:
-            raise ValueError("Haeavustuksia-vastaus on virheellinen")
-        calls.extend(_parse_item(item) for item in items)
-        if page >= page_count:
-            break
-        page += 1
-    return calls
+    # API accepts one authority and grant type per request. Fetch each selected
+    # combination and collapse overlaps by source ID before writing to the DB.
+    calls: dict[str, FundingCallData] = {}
+    for authority in criteria.authorities or [""]:
+        for grant_type in criteria.grant_types or [""]:
+            page = 1
+            while True:
+                response = client.get(
+                    API_URL,
+                    params={
+                        "Pagination.Page": page,
+                        "Pagination.PageSize": page_size,
+                        "Language": "fi",
+                        "SearchTerm": "",
+                        "VaOrgLyhenne": authority,
+                        "ShowFuture": str(criteria.show_future).lower(),
+                        "ShowOngoing": str(criteria.show_ongoing).lower(),
+                        "ShowEnded": "false",
+                        "HideExternal": "false",
+                        **({"Avustuslaji": grant_type} if grant_type else {}),
+                    },
+                )
+                response.raise_for_status()
+                data = response.json()
+                items = data["hakuilmoitukset"]
+                page_count = data["pageCount"]
+                if not isinstance(items, list) or not isinstance(page_count, int) or page_count < 0:
+                    raise ValueError("Haeavustuksia-vastaus on virheellinen")
+                for item in items:
+                    call = _parse_item(item)
+                    calls[call.source_id] = call
+                if page >= page_count:
+                    break
+                page += 1
+    return list(calls.values())
 
 
 def import_haeavustuksia(session: Session, client: httpx.Client | None = None) -> ImportResult:

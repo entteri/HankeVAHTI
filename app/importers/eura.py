@@ -103,11 +103,11 @@ def parse_eura_page(html: str, criteria: EuraCriteria | None = None) -> list[Fun
     for item in items:
         if item["tila"] != "haettavissa":
             continue
-        if criteria.fund and item.get("rahasto") != criteria.fund:
+        if criteria.funds and item.get("rahasto") not in criteria.funds:
             continue
-        if criteria.area and item.get("alue") != criteria.area:
+        if criteria.areas and item.get("alue") not in criteria.areas:
             continue
-        if criteria.authority and item.get("viranomainen") != criteria.authority:
+        if criteria.authorities and item.get("viranomainen") not in criteria.authorities:
             continue
         if criteria.regions and not set(criteria.regions).intersection(item.get("maakunnat") or []):
             continue
