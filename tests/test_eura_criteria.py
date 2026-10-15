@@ -4,6 +4,7 @@ from urllib.parse import quote
 
 import httpx
 from fastapi.testclient import TestClient
+from nicegui import ui
 from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
@@ -11,20 +12,22 @@ from app.main import app
 from app.models import EuraSearchCriteria, FundingCall
 from app.services.eura_criteria import EuraCriteria, get_eura_criteria, save_eura_criteria
 from app.services.funding_calls import get_funding_call
+from app.services.haeavustuksia_criteria import get_haeavustuksia_criteria
+from tests.test_relevance_ui import _click, _page_client
 
 
 def test_criteria_default_and_saved_values(db_session):
     assert get_eura_criteria(db_session) == EuraCriteria()
     selected = EuraCriteria(
-        fund=None,
-        area="ETELA_SUOMI",
-        authority="2601",
+        funds=[],
+        areas=["ETELA_SUOMI", "LANSI_SUOMI"],
+        authorities=["2601", "2602"],
         regions=["01", "02"],
         call_identifier="PSUEVK-112",
     )
     save_eura_criteria(db_session, selected)
     assert get_eura_criteria(db_session) == selected
-    assert db_session.scalar(select(EuraSearchCriteria)).fund is None
+    assert db_session.scalar(select(EuraSearchCriteria)).funds == []
 
 
 def test_existing_eura_call_gets_direct_detail_link(db_session):
@@ -98,3 +101,44 @@ def test_hae_criteria_remain_visible_when_eura_options_fail(db_session, monkeypa
     assert response.status_code == 200
     assert "EURA-valintoja ei voitu hakea" in response.text
     assert "Tallenna Haeavustuksia-hakuehdot" in response.text
+
+
+def test_search_criteria_multiselects_save_and_reload(db_session, monkeypatch):
+    options = {
+        "fund": {"ESR+": "ESR+", "EAKR": "EAKR"},
+        "area": {"ETELA": "Etelä-Suomi", "LANSI": "Länsi-Suomi"},
+        "authority": {"2601": "Viranomainen 1", "2602": "Viranomainen 2"},
+        "regions": {"01": "Uusimaa", "02": "Varsinais-Suomi"},
+    }
+    monkeypatch.setattr("app.ui.search_criteria.fetch_eura_options", lambda client: options)
+    monkeypatch.setattr("app.ui.search_criteria.fetch_haeavustuksia_authorities",
+                        lambda client: {"OKM": "OKM", "TEM": "TEM"})
+    monkeypatch.setattr("app.ui.search_criteria.SessionLocal", sessionmaker(bind=db_session.get_bind()))
+
+    with TestClient(app) as client:
+        page = _page_client(client.get("/hakuehdot"))
+
+        def select(label, values):
+            with page:
+                element = next(e for e in page.elements.values()
+                               if isinstance(e, ui.select) and e.props["label"] == label)
+                assert element.props["multiple"] is True
+                element.set_value(values)
+
+        client.portal.call(select, "Rahasto", ["ESR+", "EAKR"])
+        client.portal.call(select, "Haun kohdealue", ["ETELA", "LANSI"])
+        client.portal.call(select, "Avustuslaji", ["Hankeavustus", "Apuraha"])
+        client.portal.call(select, "Valtionapuviranomainen", ["OKM", "TEM"])
+        client.portal.call(_click, page, "Tallenna EURA-hakuehdot")
+        client.portal.call(_click, page, "Tallenna Haeavustuksia-hakuehdot")
+
+        db_session.expire_all()
+        assert get_eura_criteria(db_session).funds == ["ESR+", "EAKR"]
+        assert get_eura_criteria(db_session).areas == ["ETELA", "LANSI"]
+        assert get_haeavustuksia_criteria(db_session).grant_types == ["Hankeavustus", "Apuraha"]
+        assert get_haeavustuksia_criteria(db_session).authorities == ["OKM", "TEM"]
+
+        reloaded = _page_client(client.get("/hakuehdot"))
+        values = {e.props["label"]: e.value for e in reloaded.elements.values() if isinstance(e, ui.select)}
+        assert values["Rahasto"] == ["ESR+", "EAKR"]
+        assert values["Avustuslaji"] == ["Hankeavustus", "Apuraha"]

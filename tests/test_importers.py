@@ -74,9 +74,9 @@ def test_eura_criteria_use_site_codes_and_filter_open_calls(db_session):
     first["viranomainen"] = "2601"
     first["maakunnat"] = ["01"]
     criteria = EuraCriteria(
-        fund="ESR+",
-        area="ETELA_SUOMI",
-        authority="2601",
+        funds=["ESR+"],
+        areas=["ETELA_SUOMI", "LANSI_SUOMI"],
+        authorities=["2601", "2602"],
         regions=["01"],
         call_identifier="psuevk-112",
     )
@@ -89,7 +89,7 @@ def test_eura_criteria_use_site_codes_and_filter_open_calls(db_session):
 
 def test_eura_fund_can_be_changed_to_other_site_option(db_session):
     data = _fixture("eura_page_data.json")
-    save_eura_criteria(db_session, EuraCriteria(fund="EAKR"))
+    save_eura_criteria(db_session, EuraCriteria(funds=["EAKR"]))
     with _client(eura_data=data) as client:
         assert import_eura(db_session, client).created == 1
     call = db_session.scalar(select(FundingCall))
@@ -97,8 +97,25 @@ def test_eura_fund_can_be_changed_to_other_site_option(db_session):
     assert call.fund == "EAKR"
 
 
+def test_eura_multiple_dropdown_values_match_any_selected_value():
+    data = _fixture("eura_page_data.json")
+    items = data["preRenderData"]["hankehaku"]
+    for item in items:
+        item["alue"] = "ETELA_SUOMI"
+        item["viranomainen"] = "2601"
+    criteria = EuraCriteria(
+        funds=["ESR+", "EAKR"],
+        areas=["ETELA_SUOMI", "LANSI_SUOMI"],
+        authorities=["2601", "2602"],
+    )
+    assert {call.source_id for call in parse_eura_page(_eura_html(data), criteria)} == {
+        "d62b6d71-91c0-40e3-83b3-c5db0d51f134", "eakr-1"
+    }
+    assert parse_eura_page(_eura_html(data), EuraCriteria(funds=["ESR+"], areas=["POHJOINEN"])) == []
+
+
 def test_combined_import_uses_saved_eura_criteria(db_session):
-    save_eura_criteria(db_session, EuraCriteria(fund="EAKR"))
+    save_eura_criteria(db_session, EuraCriteria(funds=["EAKR"]))
     pages = {1: _fixture("hae_page_1.json"), 2: _fixture("hae_page_2.json")}
     with _client(eura_data=_fixture("eura_page_data.json"), hae_pages=pages) as client:
         result = run_imports(db_session, client)
@@ -179,10 +196,10 @@ def test_hae_import_reads_all_pages_and_converts_local_dates(db_session):
 
 def test_hae_import_uses_saved_criteria(db_session):
     selected = HaeavustuksiaCriteria(
-        grant_type="Hankeavustus",
+        grant_types=["Hankeavustus"],
         show_future=False,
         show_ongoing=True,
-        authority="OKM",
+        authorities=["OKM"],
     )
     save_haeavustuksia_criteria(db_session, selected)
     assert get_haeavustuksia_criteria(db_session) == selected
@@ -201,6 +218,27 @@ def test_hae_import_uses_saved_criteria(db_session):
     assert params["ShowFuture"] == "false"
     assert params["ShowOngoing"] == "true"
     assert params["VaOrgLyhenne"] == "OKM"
+
+
+def test_hae_multiple_dropdown_values_fetch_each_combination_once(db_session):
+    save_haeavustuksia_criteria(db_session, HaeavustuksiaCriteria(
+        grant_types=["Hankeavustus", "Apuraha"], authorities=["OKM", "TEM"]
+    ))
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append((request.url.params["VaOrgLyhenne"], request.url.params["Avustuslaji"]))
+        return httpx.Response(200, json=_fixture("hae_page_1.json") | {"pageCount": 1})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        result = import_haeavustuksia(db_session, client)
+    assert set(requests) == {
+        ("OKM", "Hankeavustus"), ("OKM", "Apuraha"),
+        ("TEM", "Hankeavustus"), ("TEM", "Apuraha"),
+    }
+    assert len(requests) == 4
+    assert result.created == 1
+    assert db_session.scalar(select(func.count()).select_from(FundingCall)) == 1
 
 
 def test_hae_detail_url_escapes_path_segments():

@@ -24,7 +24,7 @@ def test_reset_removes_calls_and_related_decisions_but_keeps_search_settings(db_
     first.participation = Participation(notes="Testimuistiinpano")
     second = FundingCall(source="HAEAVUSTUKSIA", source_id="second", title="Toinen")
     second.evaluation = Evaluation(status=EvaluationStatus.REJECTED)
-    db_session.add_all([first, second, SearchProfile(name="Oma haku"), EuraSearchCriteria(fund="ESR+")])
+    db_session.add_all([first, second, SearchProfile(name="Oma haku"), EuraSearchCriteria(funds=["ESR+"], areas=[], authorities=[], regions=[])])
     db_session.commit()
 
     assert funding_call_count(db_session) == 2

@@ -20,19 +20,20 @@ from app.ui.theme import page_layout
 logger = logging.getLogger(__name__)
 
 
-def _select_options(options: dict[str, str], all_label: str) -> dict[str, str]:
-    return {"": all_label, **dict(sorted(options.items(), key=lambda item: item[1].casefold()))}
+def _select_options(options: dict[str, str]) -> dict[str, str]:
+    return dict(sorted(options.items(), key=lambda item: item[1].casefold()))
+
+
+def _selected_text(codes: list[str], labels: dict[str, str]) -> str:
+    return ", ".join(labels.get(code, code) for code in codes) if codes else "kaikki"
 
 
 def _saved_criteria_text(criteria: EuraCriteria, options: dict[str, dict[str, str]]) -> str:
     parts = [
-        f"Rahasto: {options['fund'].get(criteria.fund, criteria.fund) if criteria.fund else 'kaikki'}",
-        f"Haun kohdealue: {options['area'].get(criteria.area, criteria.area) if criteria.area else 'kaikki'}",
-        f"Viranomainen: {options['authority'].get(criteria.authority, criteria.authority) if criteria.authority else 'kaikki'}",
-        "Maakunnat: " + (
-            ", ".join(options["regions"].get(code, code) for code in criteria.regions)
-            if criteria.regions else "kaikki"
-        ),
+        f"Rahasto: {_selected_text(criteria.funds, options['fund'])}",
+        f"Haun kohdealue: {_selected_text(criteria.areas, options['area'])}",
+        f"Viranomainen: {_selected_text(criteria.authorities, options['authority'])}",
+        f"Maakunnat: {_selected_text(criteria.regions, options['regions'])}",
         f"Hakutunnus: {criteria.call_identifier or 'kaikki'}",
     ]
     return "Voimassa olevat EURA-hakuehdot: " + "; ".join(parts) + "."
@@ -41,10 +42,10 @@ def _saved_criteria_text(criteria: EuraCriteria, options: dict[str, dict[str, st
 def _saved_hae_criteria_text(criteria: HaeavustuksiaCriteria, authorities: dict[str, str]) -> str:
     return (
         "Voimassa olevat Haeavustuksia-hakuehdot: "
-        f"Avustuslaji: {GRANT_TYPE_LABELS.get(criteria.grant_type, criteria.grant_type) if criteria.grant_type else 'kaikki'}; "
+        f"Avustuslaji: {_selected_text(criteria.grant_types, GRANT_TYPE_LABELS)}; "
         f"Tulevat haut: {'kyllä' if criteria.show_future else 'ei'}; "
         f"Käynnissä olevat haut: {'kyllä' if criteria.show_ongoing else 'ei'}; "
-        f"Viranomainen: {authorities.get(criteria.authority, criteria.authority) if criteria.authority else 'kaikki'}."
+        f"Viranomainen: {_selected_text(criteria.authorities, authorities)}."
     )
 
 
@@ -55,6 +56,7 @@ def _eura_section() -> None:
         "Tallenna EURA-hakuehdot. Ne vaikuttavat seuraaviin EURA-tuonteihin; aiemmin tuotuja "
         "hankkeita ei poisteta."
     ).classes("text-sm text-gray-600")
+    ui.label("Voit valita useita vaihtoehtoja. Tyhjä valinta tarkoittaa kaikkia.").classes("text-sm text-gray-600")
 
     try:
         with httpx.Client(timeout=30.0, follow_redirects=True) as client:
@@ -67,27 +69,41 @@ def _eura_section() -> None:
 
     with SessionLocal() as session:
         criteria = get_eura_criteria(session)
+    for field, codes in (
+        ("fund", criteria.funds),
+        ("area", criteria.areas),
+        ("authority", criteria.authorities),
+        ("regions", criteria.regions),
+    ):
+        for code in codes:
+            options[field].setdefault(code, code)
 
     with ui.card().classes("w-full p-5 gap-4"):
         saved_label = ui.label(_saved_criteria_text(criteria, options)).classes("text-sm font-medium")
         fund = ui.select(
-            _select_options(options["fund"], "Kaikki rahastot"),
+            _select_options(options["fund"]),
             label="Rahasto",
-            value=criteria.fund or "",
+            value=criteria.funds,
+            multiple=True,
+            clearable=True,
         ).classes("w-full")
         area = ui.select(
-            _select_options(options["area"], "Kaikki kohdealueet"),
+            _select_options(options["area"]),
             label="Haun kohdealue",
-            value=criteria.area or "",
+            value=criteria.areas,
+            multiple=True,
+            clearable=True,
         ).classes("w-full")
         authority = ui.select(
-            _select_options(options["authority"], "Kaikki viranomaiset"),
+            _select_options(options["authority"]),
             label="Viranomainen",
-            value=criteria.authority or "",
+            value=criteria.authorities,
+            multiple=True,
             with_input=True,
+            clearable=True,
         ).classes("w-full")
         regions = ui.select(
-            dict(sorted(options["regions"].items(), key=lambda item: item[1].casefold())),
+            _select_options(options["regions"]),
             label="Maakunnat",
             value=criteria.regions,
             multiple=True,
@@ -102,9 +118,9 @@ def _eura_section() -> None:
 
         def save() -> None:
             selected = EuraCriteria(
-                fund=fund.value or None,
-                area=area.value or None,
-                authority=authority.value or None,
+                funds=list(fund.value or []),
+                areas=list(area.value or []),
+                authorities=list(authority.value or []),
                 regions=list(regions.value or []),
                 call_identifier=identifier.value.strip() or None,
             )
@@ -122,6 +138,7 @@ def _hae_section() -> None:
         "Nämä rajaukset vaikuttavat seuraaviin Haeavustuksia-tuonteihin. "
         "Aiemmin tuotuja hankkeita ei poisteta."
     ).classes("text-sm text-gray-600")
+    ui.label("Voit valita useita vaihtoehtoja. Tyhjä valinta tarkoittaa kaikkia.").classes("text-sm text-gray-600")
 
     with SessionLocal() as session:
         criteria = get_haeavustuksia_criteria(session)
@@ -132,31 +149,35 @@ def _hae_section() -> None:
         logger.exception("Haeavustuksia-viranomaisia ei voitu hakea")
         authorities = {}
         ui.label("Haeavustuksia-viranomaisia ei voitu hakea. Muut rajaukset ovat käytettävissä.")
-    if criteria.authority and criteria.authority not in authorities:
-        authorities[criteria.authority] = criteria.authority
+    for code in criteria.authorities:
+        authorities.setdefault(code, code)
 
     with ui.card().classes("w-full p-5 gap-4"):
         saved_label = ui.label(_saved_hae_criteria_text(criteria, authorities)).classes("text-sm font-medium")
         grant_type = ui.select(
-            _select_options(GRANT_TYPE_LABELS, "Kaikki avustuslajit"),
+            _select_options(GRANT_TYPE_LABELS),
             label="Avustuslaji",
-            value=criteria.grant_type or "",
+            value=criteria.grant_types,
+            multiple=True,
+            clearable=True,
         ).classes("w-full")
         show_future = ui.checkbox("Tulevat haut", value=criteria.show_future)
         show_ongoing = ui.checkbox("Käynnissä olevat haut", value=criteria.show_ongoing)
         authority = ui.select(
-            _select_options(authorities, "Kaikki viranomaiset"),
+            _select_options(authorities),
             label="Valtionapuviranomainen",
-            value=criteria.authority or "",
+            value=criteria.authorities,
+            multiple=True,
             with_input=True,
+            clearable=True,
         ).classes("w-full")
 
         def save() -> None:
             selected = HaeavustuksiaCriteria(
-                grant_type=grant_type.value or None,
+                grant_types=list(grant_type.value or []),
                 show_future=show_future.value,
                 show_ongoing=show_ongoing.value,
-                authority=authority.value or None,
+                authorities=list(authority.value or []),
             )
             with SessionLocal() as session:
                 save_haeavustuksia_criteria(session, selected)
