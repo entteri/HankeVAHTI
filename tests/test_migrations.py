@@ -80,7 +80,7 @@ def test_decision_and_match_migration_upgrade_downgrade_preserve_legacy_data(tmp
             current_columns = {row[1]: row for row in connection.execute("PRAGMA table_info(evaluations)")}
             new_columns = {"rejected_at", "matched_keywords", "matched_excluded_keywords"}
             if direction == "upgrade":
-                assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0007_multiple_search_criteria"
+                assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0008_application_drafts"
                 assert connection.execute("SELECT rejected_at, matched_keywords, matched_excluded_keywords FROM evaluations").fetchone() == (None, None, None)
                 assert all(current_columns[name][3] == 0 for name in new_columns)
                 # Downgrade poistaa vain uudet tiedot; vanhat sarakkeet säilyvät.
