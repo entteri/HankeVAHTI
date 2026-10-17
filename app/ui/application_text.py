@@ -17,6 +17,7 @@ from app.services.application_text import (
     format_application_text,
 )
 from app.services.funding_calls import FundingCallView
+from app.ui.dates import format_local_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -72,9 +73,11 @@ def application_text_dialog(call: FundingCallView):
 
         current_draft_id: int | None = None
         busy = False
+        load_buttons: list[ui.button] = []
 
         def refresh_saved_drafts() -> None:
             saved_drafts.clear()
+            load_buttons.clear()
 
             try:
                 with SessionLocal() as session:
@@ -95,18 +98,19 @@ def application_text_dialog(call: FundingCallView):
 
                         with ui.card().classes("w-full p-3 gap-2"):
                             ui.label(saved_title).classes("font-medium")
-                            if saved_updated_at:
-                                ui.label(
-                                    "Viimeksi muokattu: "
-                                    f"{saved_updated_at:%d.%m.%Y %H:%M}"
-                                ).classes("text-sm text-gray-500")
+                            ui.label(
+                                "Viimeksi muokattu: "
+                                f"{format_local_datetime(saved_updated_at)}"
+                            ).classes("text-sm text-gray-500")
 
-                            ui.button(
+                            load_button = ui.button(
                                 "Avaa luonnos",
                                 on_click=lambda draft_id=saved_id: load_draft(
                                     draft_id
                                 ),
                             ).props("outline")
+                            load_button.set_enabled(not busy)
+                            load_buttons.append(load_button)
 
             except Exception:
                 logger.exception(
@@ -120,6 +124,9 @@ def application_text_dialog(call: FundingCallView):
 
         def load_draft(draft_id: int) -> None:
             nonlocal current_draft_id
+
+            if busy:
+                return
 
             try:
                 with SessionLocal() as session:
@@ -141,6 +148,12 @@ def application_text_dialog(call: FundingCallView):
                 current_draft_id = draft_id
                 question.set_value(selected_title)
                 draft.set_value(selected_content)
+                result_text.set_value("")
+                additional.set_text("")
+                count.set_text("Merkkimäärä: 0")
+                copy_button.disable()
+                use_button.disable()
+                status.set_text("Luonnos avattu. Voit muodostaa uuden AI-ehdotuksen.")
                 save_status.set_text(
                     "Luonnos avattu. Voit muokata tekstiä ja tallentaa muutokset."
                 )
@@ -153,6 +166,9 @@ def application_text_dialog(call: FundingCallView):
 
         def save_draft() -> None:
             nonlocal current_draft_id
+
+            if busy:
+                return
 
             title = (question.value or "").strip()
             content = draft.value or ""
@@ -208,9 +224,10 @@ def application_text_dialog(call: FundingCallView):
                 return
 
             busy = True
-            controls = [question, draft, criteria, limit, submit]
+            controls = [question, draft, criteria, limit, submit, save_button, *load_buttons]
             for control in controls:
                 control.disable()
+            use_button.disable()
 
             status.set_text("Muotoillaan tekstiä…")
 
@@ -270,11 +287,14 @@ def application_text_dialog(call: FundingCallView):
                 if not dialog.is_deleted:
                     for control in controls:
                         control.enable()
+                    use_button.set_enabled(bool((result_text.value or "").strip()))
 
 
         submit = ui.button("Muotoile teksti", on_click=format_text)
 
         def use_ai_suggestion() -> None:
+            if busy:
+                return
             suggested_text = result_text.value or ""
             if not suggested_text.strip():
                 status.set_text("Tekoälyn ehdottamaa tekstiä ei ole vielä.")
@@ -286,12 +306,13 @@ def application_text_dialog(call: FundingCallView):
                 "Tarkista teksti ja tallenna muutokset."
             )
 
-        ui.button(
+        use_button = ui.button(
             "Käytä tekoälyn ehdotusta",
             on_click=use_ai_suggestion,
         ).props("outline")
+        use_button.disable()
 
-        ui.button(
+        save_button = ui.button(
             "Tallenna luonnos", on_click=save_draft
         ).props("outline")
         ui.button("Sulje", on_click=dialog.close).props("flat")

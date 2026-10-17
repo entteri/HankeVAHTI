@@ -1,9 +1,7 @@
 """Hankkeiden selailu, lisätiedot ja osallistumispäätökset."""
 
 import asyncio
-from datetime import datetime, timezone
 from math import ceil
-from zoneinfo import ZoneInfo
 
 from nicegui import ui
 
@@ -16,6 +14,7 @@ from app.services.ai_summary import SummaryError, generate_ai_summary
 from app.services.duplicates import DuplicateMatch, find_duplicate_matches
 from app.services.funding_calls import FundingCallSort, FundingCallView, list_funding_calls, set_funding_call_status
 from app.ui.application_text import application_text_dialog
+from app.ui.dates import format_local_datetime as _rejected_at
 from app.ui.keyword_highlights import highlight_keywords
 from app.ui.theme import FUNDING_NAVIGATION, RELEVANCE_TONES, STATUS_TONES, page_layout
 
@@ -51,14 +50,6 @@ STAGE_LABELS = {
 
 def _date(value) -> str:
     return value.strftime("%d.%m.%Y") if value else "Ei tiedossa"
-
-
-def _rejected_at(value: datetime | None) -> str:
-    if value is None:
-        return "Ei tiedossa"
-    if value.tzinfo is None:
-        value = value.replace(tzinfo=timezone.utc)
-    return value.astimezone(ZoneInfo("Europe/Helsinki")).strftime("%d.%m.%Y klo %H:%M")
 
 
 def _keyword_badges(title: str, words: list[str] | None, *, scored: bool, excluded: bool = False) -> None:

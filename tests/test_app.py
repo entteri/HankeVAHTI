@@ -28,6 +28,7 @@ def test_dashboard_renders_navigation_and_metrics(db_session, monkeypatch):
         "Osallistuttavia hankkeita",
         "Hylättyjä hankkeita",
         "Käynnissä olevia hankkeita",
+        "Hakuehdot rajaavat sekä EURA- että Haeavustuksia-tuontia.",
     ):
         assert text in response.text
 

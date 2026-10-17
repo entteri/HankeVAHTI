@@ -113,8 +113,9 @@ def settings_page() -> None:
             ui.label("Aloita hankkeiden haku alusta").classes("text-xl font-semibold")
             count_label = ui.label(f"Tallennettuja hankkeita: {count}")
             ui.label(
-                "Poisto tyhjentää kaikki haetut hankkeet sekä niihin liittyvät arviot ja "
-                "osallistumistiedot. Tallennetut hakuehdot säilyvät."
+                "Poisto tyhjentää kaikki haetut hankkeet sekä niihin liittyvät arviot, "
+                "osallistumistiedot, tallennetut tekstiluonnokset ja EURA-hankehakemusluonnokset. "
+                "Tallennetut hakuehdot säilyvät."
             ).classes("text-sm text-gray-600")
 
             def confirm_delete() -> None:
@@ -133,7 +134,8 @@ def settings_page() -> None:
             with ui.dialog() as dialog, ui.card().classes("hv-dialog-confirm"):
                 ui.label("Poistetaanko kaikki haetut hankkeet?").classes("text-lg font-semibold")
                 ui.label(
-                    "Myös arviot ja osallistumistiedot poistetaan pysyvästi. "
+                    "Myös arviot, osallistumistiedot, tallennetut tekstiluonnokset ja "
+                    "EURA-hankehakemusluonnokset poistetaan pysyvästi. "
                     "Tätä ei voi kumota. Hakuehdot säilyvät."
                 )
                 with ui.row().classes("justify-end w-full"):

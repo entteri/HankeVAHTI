@@ -1,6 +1,7 @@
 """Molempien tietolähteiden tuonti yhtenä tietokantatransaktiona."""
 
 from dataclasses import asdict
+from threading import Lock
 
 import httpx
 from sqlalchemy.orm import Session
@@ -12,7 +13,17 @@ from app.services.eura_criteria import get_eura_criteria
 from app.services.haeavustuksia_criteria import get_haeavustuksia_criteria
 
 
+class ImportAlreadyRunningError(Exception):
+    """Another import is already running in this application process."""
+
+
+# Both the synchronous API and the UI's worker thread use this same lock.
+_import_lock = Lock()
+
+
 def run_imports(session: Session, client: httpx.Client | None = None) -> dict[str, dict[str, int]]:
+    if not _import_lock.acquire(blocking=False):
+        raise ImportAlreadyRunningError("Hakujen tuonti on jo käynnissä.")
     try:
         eura_criteria = get_eura_criteria(session)
         hae_criteria = get_haeavustuksia_criteria(session)
@@ -33,3 +44,5 @@ def run_imports(session: Session, client: httpx.Client | None = None) -> dict[st
     except Exception:
         session.rollback()
         raise
+    finally:
+        _import_lock.release()

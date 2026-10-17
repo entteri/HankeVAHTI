@@ -1,10 +1,14 @@
 import json
+from datetime import datetime, timezone
+from threading import Event
+from types import SimpleNamespace
 
 import httpx
 import pytest
-from nicegui import ui
+from nicegui import events, ui
 
 from app.services.application_text import ApplicationTextError, ApplicationTextResult, format_application_text
+from app.services.application_drafts import list_application_drafts, save_application_draft
 from app.services.funding_calls import list_funding_calls
 from tests.test_ai_summary import _selected_call
 from tests.test_funding_calls import _test_client
@@ -162,3 +166,118 @@ def test_ui_without_key(db_session, monkeypatch):
         client.portal.call(_click, page, "Muotoile teksti")
         assert any("OPENAI_API_KEY puuttuu" in e.text for e in page.elements.values() if isinstance(e, ui.label))
         assert next(e for e in page.elements.values() if isinstance(e, ui.button) and e.text == "Muotoile teksti").enabled
+
+
+def _button(page, text):
+    return next(e for e in page.elements.values() if isinstance(e, ui.button) and e.text == text)
+
+
+def _draft_button(page, title):
+    return next(e for e in page.elements.values() if isinstance(e, ui.button) and e.text == "Avaa luonnos"
+                and any(isinstance(sibling, ui.label) and sibling.text == title
+                        for sibling in e.parent_slot.children))
+
+
+def _invoke(page, button):
+    # Invoke even a disabled control to simulate an already queued browser event.
+    with page:
+        listener = next(listener for listener in button._event_listeners.values() if listener.type == "click")
+        events.handle_event(listener.handler, events.GenericEventArguments(sender=button, client=page, args=None))
+
+
+def _textarea(page, label):
+    return next(e for e in page.elements.values() if isinstance(e, ui.textarea) and e.props.get("label") == label)
+
+
+def test_switching_draft_clears_ai_result_without_changing_saved_text(db_session, monkeypatch):
+    call = _selected_call(db_session)
+    save_application_draft(db_session, call.id, "Luonnos A", "Oma teksti A")
+    save_application_draft(db_session, call.id, "Luonnos B", "Oma teksti B")
+    monkeypatch.setattr("app.ui.application_text.format_application_text",
+                        lambda *args: ApplicationTextResult("AI-teksti A", "Lisätiedot A", 5))
+    with _test_client(db_session, monkeypatch) as client:
+        page = _page_client(client.get("/hankkeet"))
+        client.portal.call(_click, page, "Muotoile hakemustekstiä")
+        client.portal.call(_invoke, page, _draft_button(page, "Luonnos A"))
+        client.portal.call(_click, page, "Muotoile teksti")
+        assert _textarea(page, "Valmis hakemusteksti").value == "AI-teksti A"
+        assert _button(page, "Käytä tekoälyn ehdotusta").enabled
+        client.portal.call(_invoke, page, _draft_button(page, "Luonnos B"))
+        assert _textarea(page, "Valmis hakemusteksti").value == ""
+        labels = [e.text for e in page.elements.values() if isinstance(e, ui.label)]
+        assert "Merkkimäärä: 0" in labels
+        assert not any("Lisätiedot A" in text or "ylittyy" in text for text in labels)
+        assert not _button(page, "Kopioi valmis teksti").enabled
+        assert not _button(page, "Käytä tekoälyn ehdotusta").enabled
+        client.portal.call(_invoke, page, _button(page, "Käytä tekoälyn ehdotusta"))
+        assert _textarea(page, "Oma hakemustekstiluonnos").value == "Oma teksti B"
+        client.portal.call(_click, page, "Tallenna luonnos")
+    db_session.expire_all()
+    assert {d.title: d.content for d in list_application_drafts(db_session, call.id)} == {
+        "Luonnos A": "Oma teksti A", "Luonnos B": "Oma teksti B",
+    }
+
+
+@pytest.mark.parametrize("fail", [False, True])
+def test_pending_ai_blocks_draft_switch_and_preserves_user_text(db_session, monkeypatch, fail):
+    call = _selected_call(db_session)
+    save_application_draft(db_session, call.id, "Luonnos A", "Oma teksti A")
+    save_application_draft(db_session, call.id, "Luonnos B", "Oma teksti B")
+    started, release = Event(), Event()
+
+    def formatter(*args):
+        started.set()
+        assert release.wait(4)
+        if fail:
+            raise ApplicationTextError("Testivirhe")
+        return ApplicationTextResult("AI-teksti A", "", None)
+
+    monkeypatch.setattr("app.ui.application_text.format_application_text", formatter)
+    with _test_client(db_session, monkeypatch) as client:
+        page = _page_client(client.get("/hankkeet"))
+        client.portal.call(_click, page, "Muotoile hakemustekstiä")
+        client.portal.call(_invoke, page, _draft_button(page, "Luonnos A"))
+        client.portal.call(edit, page, "Oma hakemustekstiluonnos", "Tallentamaton muokkaus A")
+        future = client.portal.start_task_soon(_click, page, "Muotoile teksti")
+        try:
+            assert started.wait(3)
+            assert not _draft_button(page, "Luonnos B").enabled
+            assert not _button(page, "Tallenna luonnos").enabled
+            assert not _button(page, "Käytä tekoälyn ehdotusta").enabled
+            client.portal.call(_invoke, page, _draft_button(page, "Luonnos B"))
+            assert _textarea(page, "Oma hakemustekstiluonnos").value == "Tallentamaton muokkaus A"
+        finally:
+            release.set()
+            future.result(timeout=5)
+        assert _draft_button(page, "Luonnos B").enabled
+        assert _button(page, "Tallenna luonnos").enabled
+        assert _button(page, "Muotoile teksti").enabled
+        assert _textarea(page, "Oma hakemustekstiluonnos").value == "Tallentamaton muokkaus A"
+        assert _textarea(page, "Valmis hakemusteksti").value == ("" if fail else "AI-teksti A")
+        if fail:
+            assert "Testivirhe" in [e.text for e in page.elements.values() if isinstance(e, ui.label)]
+        client.portal.call(_invoke, page, _draft_button(page, "Luonnos B"))
+        assert _textarea(page, "Valmis hakemusteksti").value == ""
+        assert _textarea(page, "Oma hakemustekstiluonnos").value == "Oma teksti B"
+    db_session.expire_all()
+    assert {d.title: d.content for d in list_application_drafts(db_session, call.id)} == {
+        "Luonnos A": "Oma teksti A", "Luonnos B": "Oma teksti B",
+    }
+
+
+@pytest.mark.parametrize("timestamp,expected", [
+    (datetime(2026, 1, 17, 12, 45, tzinfo=timezone.utc), "17.01.2026 klo 14:45"),
+    (datetime(2026, 7, 17, 12, 45), "17.07.2026 klo 15:45"),
+    (None, "Ei tiedossa"),
+])
+def test_saved_text_draft_time_is_displayed_in_helsinki(db_session, monkeypatch, timestamp, expected):
+    _selected_call(db_session)
+    monkeypatch.setattr("app.ui.application_text.list_application_drafts", lambda *args: [
+        SimpleNamespace(id=1, title="Tallennettu luonnos", updated_at=timestamp),
+    ])
+    with _test_client(db_session, monkeypatch) as client:
+        page = _page_client(client.get("/hankkeet"))
+        client.portal.call(_click, page, "Muotoile hakemustekstiä")
+        assert f"Viimeksi muokattu: {expected}" in [
+            e.text for e in page.elements.values() if isinstance(e, ui.label)
+        ]

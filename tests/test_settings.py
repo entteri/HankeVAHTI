@@ -54,4 +54,5 @@ def test_settings_page_shows_reset_action_and_confirmation(db_session, monkeypat
     assert "Tallennettuja hankkeita: 1" in response.text
     assert "Poista kaikki haetut hankkeet" in response.text
     assert "Poistetaanko kaikki haetut hankkeet?" in response.text
+    assert "tallennetut tekstiluonnokset ja EURA-hankehakemusluonnokset poistetaan pysyvästi" in response.text
     assert funding_call_count(db_session) == 1

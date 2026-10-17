@@ -1,12 +1,12 @@
 import asyncio
 import logging
 
-from nicegui import ui
+from nicegui import events, ui
 
 from app.db.session import SessionLocal
 from app.services.duplicates import find_duplicate_matches
 from app.services.funding_calls import dashboard_counts
-from app.services.imports import run_imports
+from app.services.imports import ImportAlreadyRunningError, run_imports
 from app.ui.theme import DASHBOARD_NAVIGATION, page_layout
 
 logger = logging.getLogger(__name__)
@@ -31,16 +31,27 @@ def _import_feedback(result: dict[str, dict[str, int]]) -> tuple[str, str]:
     )
 
 
-async def _on_import_click() -> None:
+async def _on_import_click(event: events.ClickEventArguments) -> None:
+    button = event.sender
+    if not button.enabled:
+        ui.notify("Hakujen tuonti on jo käynnissä.", type="info")
+        return
+    button.disable()
+    button.props("loading")
     try:
         result = await asyncio.to_thread(_run_imports_from_ui)
+        dashboard_stats.refresh()
+        message, level = _import_feedback(result)
+        ui.notify(message, type=level)
+    except ImportAlreadyRunningError as exc:
+        ui.notify(str(exc), type="info")
     except Exception:
         logger.exception("Tietolähteiden tuonti epäonnistui")
         ui.notify("Tuonti epäonnistui. Tarkista loki.", type="negative")
-        return
-    dashboard_stats.refresh()
-    message, level = _import_feedback(result)
-    ui.notify(message, type=level)
+    finally:
+        if not button.is_deleted:
+            button.props(remove="loading")
+            button.enable()
 
 
 @ui.refreshable
@@ -75,6 +86,7 @@ def dashboard() -> None:
         with ui.row().classes("gap-3 flex-wrap"):
             ui.button("Hae uudet hankkeet", on_click=_on_import_click)
         ui.label(
-            "Hakuehdot rajaavat vain EURA-hakuja. Haeavustuksia-palvelusta tuodaan kaikki avoimet haut."
+            "Hakuehdot rajaavat sekä EURA- että Haeavustuksia-tuontia. "
+            "Voit muuttaa kummankin lähteen valintoja Hakuehdot-sivulla."
         ).classes("text-sm text-gray-600")
         dashboard_stats()

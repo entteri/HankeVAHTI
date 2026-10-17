@@ -2,6 +2,8 @@
 
 Yhden käyttäjän paikallinen sovellus rahoitushankkeiden seurantaan. Sovellus sisältää tietokantamallit, migraatiot, FastAPI-rungon, NiceGUI-käyttöliittymän, EURA- ja Haeavustuksia-importerit sekä sääntöpohjaisen relevanssipisteytyksen käyttäjän omilla hakusanoilla.
 
+Nykyisessä MVP:ssä ei ole kirjautumista. Oletusosoite on `HOST=127.0.0.1`, ja sovellus on tarkoitettu paikalliseen käyttöön. Sitä ei ole tarkoitettu sellaisenaan avattavaksi julkiseen verkkoon.
+
 ## Käynnistys
 
 Vaatii Python 3.12:n tai uudemman.
@@ -19,7 +21,7 @@ Selain: <http://localhost:8080>. Health endpoint: <http://localhost:8080/health>
 
 Tietokanta sijaitsee oletuksena tiedostossa `data/hankevahti.db`. Sovellus ei luo tauluja käynnistyessään; tee tai päivitä taulut Alembicilla. Yhteyden voi vaihtaa `DATABASE_URL`-ympäristömuuttujalla. Paikallinen `.env` luetaan automaattisesti.
 
-Pääsivun **Hae uudet hankkeet** -painike tai `POST /api/imports/run` hakee molemmat lähteet. Tuonti käsittelee Haeavustuksia-palvelun kaikki sivut, tuo EURAsta vain haettavissa olevat ESR+-haut ja päivittää muuttuneet lähdetiedot. Uudelle haulle luodaan `NEW`-arvio; aiempaa arviota tai osallistumistietoja ei muuteta. Molemmat lähteet tallennetaan yhdessä transaktiossa, joten virhe ei jätä osittaista tuontia.
+Pääsivun **Hae uudet hankkeet** -painike tai `POST /api/imports/run` hakee molemmat lähteet. Tuonti käsittelee Haeavustuksia-palvelun kaikki hakuehtoja vastaavat sivut, tuo EURAsta haettavissa olevat haut tallennettujen rahasto- ja muiden hakuehtojen mukaan ja päivittää muuttuneet lähdetiedot. Uudelle haulle luodaan `NEW`-arvio; aiempaa arviota tai osallistumistietoja ei muuteta. Molemmat lähteet tallennetaan yhdessä transaktiossa, joten virhe ei jätä osittaista tuontia.
 
 ## Mahdolliset duplikaatit
 
@@ -35,7 +37,7 @@ Pudotusvalikoista voi valita useita rahastoja, kohdealueita, viranomaisia, maaku
 
 Haeavustuksia-hankkeen **Lisätiedot**-ikkunassa lähdelinkki avaa kyseisen haun osoitteessa `https://www.haeavustuksia.fi/fi/haku/{asianumero}`.
 
-**Asetukset**-sivulla voi tyhjentää kaikki haetut hankkeet ja aloittaa tuonnin alusta. Painike avaa vahvistusikkunan. Tyhjennys poistaa myös hankkeiden arviot ja osallistumistiedot pysyvästi, mutta säilyttää tallennetut hakuehdot.
+**Asetukset**-sivulla voi tyhjentää kaikki haetut hankkeet ja aloittaa tuonnin alusta. Painike avaa vahvistusikkunan. Tyhjennys poistaa myös hankkeiden arviot, osallistumistiedot, tallennetut tekstiluonnokset ja EURA-hankehakemusluonnokset pysyvästi, mutta säilyttää tallennetut hakuehdot.
 
 **Lisätiedot → Muodosta AI-soveltuvuusarvio** arvioi rahoitushaun soveltuvuutta Suomen eOppimiskeskus ry:lle jo ennen osallistumispäätöstä. Myös **Osallistuttavat**-näkymän **AI-soveltuvuusarvio** -painike säilyy. Molemmat käyttävät projektin juuressa olevien UTF-8-tiedostojen `organisaatioprofiili.md` ja `ai-summary-prompt.md` koko sisältöä. Tiedostot luetaan jokaisella pyynnöllä projektin sijainnista riippumatta; puuttuva tai tyhjä tiedosto estää pyynnön ja näyttää virheilmoituksen. `asiakas.md` ja `arviointikriteerit.md` säilyvät, mutta niitä ei enää välitetä yhteenvetoon.
 
@@ -63,7 +65,7 @@ Automaattiset testit eivät kutsu oikeaa tekoälypalvelua: `.\.venv\Scripts\pyth
 
 Tuloksesta lasketaan merkit ohjelmassa, välilyönnit, välimerkit ja rivinvaihdot mukaan lukien. Otsikot ja lisätietokysymykset eivät kuulu laskentaan. Ylitys näytetään merkkien määränä, eikä tekstiä katkaista tai lyhennetä automaattisesti. **Kopioi valmis teksti** kopioi vain hakemustekstin. Tarvittaessa voit myös valita tekstin tuloskentästä ja kopioida sen Ctrl+C:llä. Tarkista tosiasiat ja rahoittajan oma merkkilaskenta ennen käyttöä.
 
-Tallennettua AI-soveltuvuusarviota ei välitetä automaattisesti muotoiluun. Tekstiä ei tallenneta tietokantaan. Kopioi tulos talteen ennen ikkunan sulkemista. Epäonnistunut uusi pyyntö säilyttää ikkunassa edellisen tuloksen; tulos kuuluu edelliseen onnistuneeseen pyyntöön. Puuttuvat asiakirjat, avain, virheellinen merkkiraja, verkkovirheet ja käyttökelvottomat vastaukset näytetään virheilmoituksina. AI-ohjeet kieltävät tietojen keksimisen, mutta ohjelma ei voi varmistaa kaikkien vastausten asiasisältöä automaattisesti.
+Tallennettua AI-soveltuvuusarviota ei välitetä automaattisesti muotoiluun. **Tallenna luonnos** tallentaa oman hakemustekstiluonnoksen paikalliseen tietokantaan. AI-tulosta ei tallenneta automaattisesti: siirrä se ensin **Käytä tekoälyn ehdotusta** -painikkeella luonnokseen ja tallenna, tai kopioi tulos erikseen talteen. Epäonnistunut uusi pyyntö säilyttää ikkunassa edellisen tuloksen; tulos kuuluu saman luonnoksen edelliseen onnistuneeseen pyyntöön. Toisen luonnoksen avaaminen tyhjentää aiemman AI-tuloksen. Puuttuvat asiakirjat, avain, virheellinen merkkiraja, verkkovirheet ja käyttökelvottomat vastaukset näytetään virheilmoituksina. AI-ohjeet kieltävät tietojen keksimisen, mutta ohjelma ei voi varmistaa kaikkien vastausten asiasisältöä automaattisesti.
 
 ### Käyttöliittymän tarkistus ilman API-avainta
 
@@ -139,7 +141,7 @@ Käynnistä sovellus asetusten muuttamisen jälkeen uudelleen:
 
 Avaa `http://localhost:8080` ja valitse **Lisätiedot → Muodosta AI-soveltuvuusarvio** tai **Muotoile hakemustekstiä**. Pelkkä Lisätiedot-ikkunan avaaminen ei lähetä AI-pyyntöä. Puuttuva avain tai malli sekä verkkovirheet, aikakatkaisu, käyttöraja, API-virhe ja tyhjä vastaus näytetään suomeksi; muu HankeVAHTI toimii ilman avainta. Gemini-pyynnön aikakatkaisu on 60 sekuntia, eikä kutsua toisteta automaattisesti.
 
-Soveltuvuusarvio tallentuu hankkeelle. Muotoiltu hakemusteksti on kopioitava erikseen talteen. Mallin vastaus on tarkistettava alkuperäisestä hakuilmoituksesta. Vastaukset näytetään tavallisena tekstinä, eikä niiden sisältämää HTML:ää suoriteta.
+Soveltuvuusarvio tallentuu hankkeelle. Muotoillun hakemustekstin voi siirtää luonnokseen **Käytä tekoälyn ehdotusta** -painikkeella ja tallentaa **Tallenna luonnos** -painikkeella tai kopioida erikseen talteen. Mallin vastaus on tarkistettava alkuperäisestä hakuilmoituksesta. Vastaukset näytetään tavallisena tekstinä, eikä niiden sisältämää HTML:ää suoriteta.
 
 ## Hankehakemusluonnos ja Word-vienti
 
