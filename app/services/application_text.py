@@ -76,10 +76,8 @@ def format_application_text(
         "Jos luotettavaa luonnosta ei voi kirjoittaa, text on tyhjä. "
         "Älä sisällytä otsikoita tai merkkimäärää text-kenttään. Sovellus laskee ja näyttää merkkimäärän."
     )
-    payload = {
-        "model": os.getenv("OPENAI_MODEL", "gpt-5.4-mini"),
-        "instructions": instructions,
-        "input": json.dumps({
+    return request_application_text(
+        instructions, {
             "question": question,
             "draft": draft,
             "criteria": criteria,
@@ -92,7 +90,29 @@ def format_application_text(
                 "application_start_date": call.application_start_date.isoformat() if call.application_start_date else None,
                 "application_end_date": call.application_end_date.isoformat() if call.application_end_date else None,
             },
-        }, ensure_ascii=False),
+        }, character_limit=character_limit, client=client,
+    )
+
+
+def request_application_text(
+    instructions: str,
+    data: dict,
+    *,
+    character_limit: int | None = None,
+    client: httpx.Client | None = None,
+) -> ApplicationTextResult:
+    """Shared structured request for the section editor and application fields."""
+    if config.AI_PROVIDER not in ("gemini", "openai"):
+        raise ApplicationTextError("Tuntematon AI_PROVIDER. Valitse .env-tiedostossa gemini tai openai.")
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if config.AI_PROVIDER == "openai" and not api_key:
+        raise ApplicationTextError("OPENAI_API_KEY puuttuu .env-tiedostosta. Muotoilu tarvitsee API-avaimen.")
+    payload = {
+        "model": os.getenv("OPENAI_MODEL", "gpt-5.4-mini"),
+        "instructions": instructions,
+        "input": json.dumps(data, ensure_ascii=False),
+        "text": {"format": {"type": "json_schema", "name": "application_text",
+                            "strict": True, "schema": APPLICATION_TEXT_SCHEMA}},
         "max_output_tokens": 4096,
         "store": False,
     }
