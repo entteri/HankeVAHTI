@@ -135,6 +135,7 @@ def _details_dialog(call: FundingCallView, duplicate_matches: list[DuplicateMatc
             }.get(call.source, "Avaa lähde")
             ui.link(label, call.source_url, new_tab=True)
         ui.button("Muotoile hakemustekstiä", on_click=lambda: application_text_dialog(call).open()).props("outline")
+        ui.button("Luo hankehakemus", on_click=lambda: ui.navigate.to(f"/hankkeet/{call.id}/hakemus"))
         ui.button("Sulje", on_click=dialog.close)
     return dialog
 

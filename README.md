@@ -141,6 +141,64 @@ Avaa `http://localhost:8080` ja valitse **Lisätiedot → Muodosta AI-soveltuvuu
 
 Soveltuvuusarvio tallentuu hankkeelle. Muotoiltu hakemusteksti on kopioitava erikseen talteen. Mallin vastaus on tarkistettava alkuperäisestä hakuilmoituksesta. Vastaukset näytetään tavallisena tekstinä, eikä niiden sisältämää HTML:ää suoriteta.
 
+## Hankehakemusluonnos ja Word-vienti
+
+**Lisätiedot → Luo hankehakemus** avaa erillisen hankehakemusluonnoksen.
+**Omat ideat ja tarkennukset (vapaaehtoinen)** -kentän voi jättää tyhjäksi.
+AI käyttää silloin haun kuvausta, organisaation taustatietoja sekä mahdollisia
+vahvistettuja hanketekstejä. Uudet hankesisällöt ovat käyttäjän tarkistettavia
+ehdotuksia. Aiemmin tallennetut lähtötiedot säilyvät tässä samassa kentässä.
+AI auttaa yhtä tekstikenttää kerrallaan
+painikkeilla **Ehdota AI:lla** ja **Paranna AI:lla**, nykyisellä Gemini/OpenAI-valinnalla.
+Tarkista ehdotus ja muokkaa sitä tarvittaessa. **Tarkistettu – käytä AI:n taustatietona**
+antaa luvan käyttää tekstiä muiden kenttien aineistona; tekstin muuttaminen poistaa merkinnän.
+Englanninkieliset kentät edellyttävät vahvistettua suomenkielistä nimeä tai tiivistelmää.
+Muiden hankkeiden yhteyksiin tarvitaan ensin omat lähtötiedot kyseiseen kenttään.
+Riskitaulukossa on pohjan mukaiset viisi muokattavaa ja poistettavaa riskiriviä.
+
+**Tallenna luonnos** tallentaa yhden luonnoksen rahoitushakua kohden paikalliseen
+tietokantaan. AI-kutsu ei tallenna automaattisesti. **Lataa Word-luonnos** vie viimeksi
+tallennetut tekstikentät alkuperäisen EURA / ESR+ -esimerkkipohjan kopioon.
+Tyhjien kenttien pohjatekstit säilyvät. Viralliset organisaatio-, henkilö-, budjetti-
+ja rahoitustiedot täytetään käsin Wordissa; AI:ta ohjeistetaan olemaan keksimättä
+virallisia, numeerisia tai taloudellisia tietoja. Tarkista silti kaikki AI:n sisältö.
+Varsinainen hakemus jätetään edelleen rahoittajan sähköisessä järjestelmässä.
+**Muotoile hakemustekstiä** säilyttää masterin toiminnot: useiden otsikoitujen
+tekstiluonnosten tallennuksen, avaamisen, muokkauksen ja AI-ehdotuksen käyttämisen.
+Nämä tekstiluonnokset ja EURA/Word-lomakeluonnos tallennetaan erillisiin tauluihin.
+
+Asenna `requirements.txt` (uutena `python-docx>=1.2,<2`). Ennen käyttöönottoa sulje
+sovellus, varmuuskopioi tietokanta ja suorita:
+
+```powershell
+.\.venv\Scripts\python.exe -m alembic upgrade head
+```
+
+Migraatioketjun pää on **0009_draft_compatibility**. Päivitys säilyttää masterin
+`application_drafts`-tekstiluonnokset ja tallentaa EURA/Word-luonnokset tauluun
+`eura_application_drafts`. Myös paikallisen prototyypin vanha
+`0008_application_draft`-tietokanta päivittyy: sen JSON-luonnokset siirretään
+uuteen taulunimeen sisältöjä muuttamatta.
+Palautus `python -m alembic downgrade 0008_application_drafts` poistaa
+**EURA/Word-luonnokset**, mutta säilyttää masterin tekstiluonnokset, haut ja arviot.
+Luonnos poistuu myös, jos sen rahoitushaku poistetaan. Versiohistoriaa tai
+samanaikaisen muokkauksen yhdistämistä ei ole: viimeisin tallennus voittaa.
+
+Hakemusluonnos käyttää yhteisiä kirjoitusohjeita tiedostosta `hakemusteksti-prompt.md`
+sekä kenttäkohtaisia ohjeita tiedostosta `hankehakemus-prompt.md` (ensisijainen kieli
+ja JSON-palautusmuoto). `organisaatioprofiili.md` ja `arviointikriteerit.md` antavat
+organisaation taustatiedot; jälkimmäisen nykyinen sisältö on organisaatiokuvaus,
+ei rahoittajan virallinen arviointiperusteisto. `ai-summary-prompt.md` ohjaa edelleen
+erillistä soveltuvuusarviota, jonka tallennettua tulosta hakemusluonnos hyödyntää.
+Tiedostot luetaan uudelleen jokaisella AI-pyynnöllä; vanhat tallennetut arviot ja
+luonnokset eivät päivity itsestään tiedostoja muuttamalla.
+
+Kentät ja tarkka Word-kohdistus:
+`app/services/application_template.py`. Alkuperäinen pohja:
+`templates/hankehakemus_tyhja_pohja.docx`. Pohjan muuttaminen edellyttää kohdistuksen
+tarkistamista; poikkeava rakenne pysäyttää viennin hallitusti. Pitkä teksti voi
+kasvattaa sivumäärää. Tämä on työskentelyluonnos, ei virallinen EURA-lomakeintegraatio.
+
 ## Testit
 
 ```powershell

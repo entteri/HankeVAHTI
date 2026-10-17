@@ -78,4 +78,3 @@ def test_application_draft_save_and_load(db_session):
     assert loaded.title == "Hakemusluonnos"
     assert loaded.content == "Hankkeen tavoitteena on kehittää oppimista."
     assert loaded.funding_call_id == call.id
-
