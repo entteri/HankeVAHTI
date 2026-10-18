@@ -1,6 +1,6 @@
 """Lähdedatan tallennus ilman käyttäjän arvioiden muuttamista."""
 
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from datetime import date
 from typing import Any, Iterable
 
@@ -30,11 +30,15 @@ class ImportResult:
     created: int = 0
     updated: int = 0
     unchanged: int = 0
+    created_ids: list[int] = field(default_factory=list)
+    fetched_ids: list[int] = field(default_factory=list)
 
 
 def upsert_calls(session: Session, calls: Iterable[FundingCallData]) -> ImportResult:
     """Tallenna lähdekentät; jätä Evaluation ja Participation koskematta."""
     result = ImportResult()
+    created_rows: list[FundingCall] = []
+    fetched_rows: list[FundingCall] = []
     for call in calls:
         existing = session.scalar(
             select(FundingCall).where(
@@ -46,6 +50,8 @@ def upsert_calls(session: Session, calls: Iterable[FundingCallData]) -> ImportRe
             row = FundingCall(**{field.name: getattr(call, field.name) for field in fields(call)})
             row.evaluation = Evaluation(status=EvaluationStatus.NEW)
             session.add(row)
+            created_rows.append(row)
+            fetched_rows.append(row)
             result.created += 1
             continue
 
@@ -61,4 +67,9 @@ def upsert_calls(session: Session, calls: Iterable[FundingCallData]) -> ImportRe
             result.updated += 1
         else:
             result.unchanged += 1
+        fetched_rows.append(existing)
+    if created_rows:
+        session.flush()
+        result.created_ids = [row.id for row in created_rows]
+    result.fetched_ids = list(dict.fromkeys(row.id for row in fetched_rows))
     return result

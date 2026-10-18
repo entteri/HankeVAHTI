@@ -167,3 +167,41 @@ Gemini-testit käyttävät mockattua SDK-clientiä ja väliaikaista tietokantaa.
 - Nykyisessä MVP-versiossa ovat käytettävissä hakusanat ja poissulkusanat, sääntöpohjainen relevanssipisteytys, pisteisiin ja deadlineen perustuva lajittelu sekä AI-soveltuvuusarvio ja hakemustekstin muotoilu
 - Relevanssipisteytys käynnistetään tällä hetkellä käsin eikä analyysihistoriaa tallenneta. Käytössä on yksi yhteinen hakusanaprofiili johon AI ei tee mitään
 - Geminin käyttö vaatii käyttäjän oman Gemini API -avaimen paikalliseen `.env`-tiedostoon. **API-AVAINTA EI TALLENNETA VERSIONHALLINTAAN**
+
+## Ilmoitukset ja Windows Task Scheduler
+
+Ilmoitusajo voidaan käynnistää kerran komennolla:
+
+```powershell
+.\.venv\Scripts\python.exe -m app.notification_job
+```
+
+Komento käyttää tietokannan ilmoitusjonoa ja lähettää sähköpostin. Se ei ole ajastin itsessään. Ensimmäinen käynnistys edellyttää, että projektin tietokanta on päivitetty Alembic-revisioon `0009_notification_outbox`, relevanssin hakuprofiili on aktiivinen ja `NOTIFICATION_MIN_RELEVANCE_SCORE` on asetettu. Älä aja ilmoituskomentoa ennen kuin SMTP-asetukset on täytetty, sillä silloin viestejä lähetetään oikeaan vastaanottajaan.
+
+Lisää paikalliseen `.env`-tiedostoon oman SMTP-palveluntarjoajasi tiedot. Älä kopioi salasanaa tai tunnusta versionhallintaan:
+
+```dotenv
+NOTIFICATION_EMAIL_TO=
+NOTIFICATION_MIN_RELEVANCE_SCORE=
+NOTIFICATION_RUN_TIME=09:00
+SMTP_HOST=
+SMTP_PORT=
+SMTP_SECURITY=starttls
+SMTP_USERNAME=
+SMTP_PASSWORD=
+SMTP_FROM_ADDRESS=
+```
+
+`SMTP_SECURITY` hyväksyy arvot `starttls` ja `ssl`. `NOTIFICATION_RUN_TIME` on Helsinki-ajassa käytettävä kellonaika muodossa `HH:MM`; aseta Task Schedulerin tehtävä samaan aikaan. Vastaanottajan, SMTP-palvelun, portin, suojaustavan, tunnukset ja lähettäjäosoitteen saat valitsemaltasi sähköpostipalveluntarjoajalta.
+
+Windows Task Schedulerin määritys:
+
+1. Luo tehtävä, jonka käynnistin toistuu kuukausittain päivinä **1** ja **15**. Valitse kellonaika, joka vastaa `NOTIFICATION_RUN_TIME`-asetusta. Käytä Windows-käyttäjää, jolla on pääsy projektikansioon, `.env`-tiedostoon ja tietokantaan.
+2. Valitse toiminnoksi **Käynnistä ohjelma**. Ohjelmaksi anna projektin `.venv\Scripts\python.exe`, argumenteiksi `-m app.notification_job --retry-failed` ja **Aloita kohteessa** -kansioksi projektin juurikansio.
+3. Aseta tehtävä käynnistymään mahdollisimman pian, jos ajastettu käynnistys jäi väliin. Estä uuden tehtäväinstanssin käynnistäminen edellisen ollessa käynnissä. Halutessasi voit asettaa rajatun uudelleenkäynnistysmäärän; saman päivän uusinnat käyttävät samaa ajon tunnistetta.
+
+Ajotunniste muodostuu Helsinki-päivämäärästä, esimerkiksi `scheduled:2027-03-15`. Jos uusit ajon myöhemmin komentoriviltä, anna alkuperäinen päivämäärä: `python -m app.notification_job --scheduled-date 2027-03-15 --retry-failed`. Älä käytä uutta päivämäärää saman hakukerran uusinnassa. Tunnetusti epäonnistunut lähetys voidaan uusia `--retry-failed`-valinnalla. `UNCERTAIN`-tilainen viesti ei lähde automaattisesti uudelleen.
+
+## Rakennerahastot.fi-lähde
+
+Nykyinen EURA-importteri hakee EURA 2021:n avoimia hakuilmoituksia. EURA 2021 ja Rakennerahastot.fi liittyvät samaan alue- ja rakennepolitiikan kokonaisuuteen, mutta ovat eri verkkopalveluja. Tässä projektissa ei ole vielä varmistettu, että nykyinen EURA-haku kattaa alkuperäisen vaatimuksen mukaiset Rakennerahastot.fi-haut. Lisäksi EURA-tuonnin oletuksena on ESR+-rahasto. Lähdevaatimuksen täyttyminen ja tarvittava rahastokattavuus pitää varmistaa erikseen; EURAa ei tässä dokumentaatiossa nimetä Rakennerahastot.fi-lähteeksi.
