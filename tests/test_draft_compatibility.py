@@ -66,7 +66,9 @@ def test_upgrade_preserves_both_origins(tmp_path, start):
     target = "application_drafts" if start == "master" else "eura_application_drafts"
     with sqlite3.connect(path) as db:
         assert db.execute(f"SELECT * FROM {target} ORDER BY id").fetchall() == saved
-        assert db.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0009_draft_compatibility"
+        assert db.execute("SELECT version_num FROM alembic_version").fetchone()[0] == (
+            "0010_merge_notification_and_application_drafts"
+        )
         for table, rows in before.items():
             assert db.execute(f'SELECT * FROM "{table}"').fetchall() == rows
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []

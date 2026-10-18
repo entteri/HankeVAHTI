@@ -15,3 +15,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "").strip()
 AI_PROVIDER = os.getenv("AI_PROVIDER", "gemini").strip().lower()
 AI_PROVIDER_LABEL = {"gemini": "Google Gemini", "openai": "OpenAI"}.get(AI_PROVIDER, "tuntematon AI-palvelu")
+NOTIFICATION_EMAIL_TO = os.getenv("NOTIFICATION_EMAIL_TO", "").strip() or None
+_notification_min_score = os.getenv("NOTIFICATION_MIN_RELEVANCE_SCORE", "").strip()
+NOTIFICATION_MIN_RELEVANCE_SCORE = int(_notification_min_score) if _notification_min_score else None
+NOTIFICATION_RUN_TIME = os.getenv("NOTIFICATION_RUN_TIME", "09:00").strip()

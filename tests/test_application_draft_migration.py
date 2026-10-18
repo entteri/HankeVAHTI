@@ -36,7 +36,9 @@ def test_upgrade_downgrade_preserves_existing_data_and_enforces_draft_constraint
         conn.execute("PRAGMA foreign_keys=ON")
         for table in tables:
             assert conn.execute(f"SELECT * FROM {table}").fetchall() == before[table]
-        assert conn.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0009_draft_compatibility"
+        assert conn.execute("SELECT version_num FROM alembic_version").fetchone()[0] == (
+            "0010_merge_notification_and_application_drafts"
+        )
         sql = "INSERT INTO eura_application_drafts (funding_call_id, content_json, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
         conn.execute(sql, (1, json.dumps({"project_context": "idea"})))
         with pytest.raises(sqlite3.IntegrityError):
