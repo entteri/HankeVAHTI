@@ -22,6 +22,8 @@ def _test_client(db_session, monkeypatch):
     app.dependency_overrides[get_db] = override_db
     monkeypatch.setattr("app.ui.dashboard.SessionLocal", session_factory)
     monkeypatch.setattr("app.ui.funding_calls.SessionLocal", session_factory)
+    monkeypatch.setattr("app.ui.application_text.SessionLocal", session_factory)
+    monkeypatch.setattr("app.ui.application_draft.SessionLocal", session_factory)
     try:
         with TestClient(app) as client:
             yield client

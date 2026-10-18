@@ -82,7 +82,9 @@ def test_decision_and_match_migration_upgrade_downgrade_preserve_legacy_data(tmp
             current_columns = {row[1]: row for row in connection.execute("PRAGMA table_info(evaluations)")}
             new_columns = {"rejected_at", "matched_keywords", "matched_excluded_keywords"}
             if direction == "upgrade":
-                assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0009_notification_outbox"
+                assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == (
+                    "0010_merge_notification_and_application_drafts"
+                )
                 assert connection.execute("SELECT rejected_at, matched_keywords, matched_excluded_keywords FROM evaluations").fetchone() == (None, None, None)
                 assert all(current_columns[name][3] == 0 for name in new_columns)
                 # Downgrade poistaa vain uudet tiedot; vanhat sarakkeet säilyvät.
@@ -129,6 +131,9 @@ def test_notification_history_migration_creates_unique_foreign_key_table(tmp_pat
     )
 
     with sqlite3.connect(database) as connection:
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == (
+            "0010_merge_notification_and_application_drafts"
+        )
         columns = {row[1] for row in connection.execute("PRAGMA table_info(notification_history)")}
         assert columns == {
             "id", "funding_call_id", "run_id", "status", "queued_at", "sent_at", "last_error",
@@ -139,6 +144,11 @@ def test_notification_history_migration_creates_unique_foreign_key_table(tmp_pat
         assert foreign_tables == {"funding_calls", "notification_runs"}
         run_columns = {row[1] for row in connection.execute("PRAGMA table_info(notification_runs)")}
         assert {"run_key", "status", "next_run_at", "subject", "body", "attempt_count"} <= run_columns
+        tables = {
+            row[0]
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+        assert {"application_drafts", "eura_application_drafts"} <= tables
         connection.execute(
             "INSERT INTO funding_calls (id, source, source_id, title, raw_data, created_at, updated_at) "
             "VALUES (1, 'EURA', 'notify-test', 'Testihaku', '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"

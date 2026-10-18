@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 if TYPE_CHECKING:
+    from app.models.eura_application_draft import EuraApplicationDraft
     from app.models.evaluation import Evaluation
     from app.models.participation import Participation
 
@@ -32,3 +33,4 @@ class FundingCall(Base):
 
     evaluation: Mapped["Evaluation | None"] = relationship(back_populates="funding_call", uselist=False, cascade="all, delete-orphan")
     participation: Mapped["Participation | None"] = relationship(back_populates="funding_call", uselist=False, cascade="all, delete-orphan")
+    eura_application_draft: Mapped["EuraApplicationDraft | None"] = relationship(back_populates="funding_call", uselist=False, cascade="all, delete-orphan")

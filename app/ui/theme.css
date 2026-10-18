@@ -155,3 +155,10 @@ body {
 
 .q-dialog__inner > .hv-dialog-wide { width: 800px; }
 .q-dialog__inner > .hv-dialog-confirm { width: 480px; }
+
+.hv-application-section { border: 1px solid var(--hv-border); border-radius: 12px; background: white; }
+.hv-application-section > .q-expansion-item__container > .q-expansion-item__content { padding: 16px; }
+.hv-application-field { padding: 12px 0; }
+.hv-application-field + .hv-application-field { border-top: 1px solid var(--hv-border); }
+.hv-application-field textarea { resize: vertical; min-height: 88px; }
+.hv-application-actions { position: sticky; top: 8px; z-index: 5; padding: 12px; border: 1px solid var(--hv-border); border-radius: 12px; background: white; }
